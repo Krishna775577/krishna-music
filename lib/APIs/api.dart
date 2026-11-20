@@ -57,15 +57,12 @@ class SaavnAPI {
     bool usev4 = true,
     bool useProxy = true,
   }) async {
-    Uri url;
-    if (!usev4) {
-      url = Uri.https(
-        baseUrl,
-        '$apiStr&$params'.replaceAll('&api_version=4', ''),
-      );
-    } else {
-      url = Uri.https(baseUrl, '$apiStr&$params');
-    }
+    // apiStr contains a query string. Do not pass it as Uri.https path:
+    // the query delimiters would be treated as path content.
+    final String endpoint = usev4
+        ? '$apiStr&$params'
+        : '$apiStr&$params'.replaceAll('&api_version=4', '');
+    final Uri url = Uri.parse('https://$baseUrl$endpoint');
     preferredLanguages =
         preferredLanguages.map((lang) => lang.toLowerCase()).toList();
     final String languageHeader = 'L=${preferredLanguages.join('%2C')}';

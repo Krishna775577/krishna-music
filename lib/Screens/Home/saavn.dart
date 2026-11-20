@@ -39,7 +39,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-bool fetched = false;
 List preferredLanguage = Hive.box('settings')
     .get('preferredLanguage', defaultValue: ['Hindi']) as List;
 List likedRadio =
@@ -68,23 +67,57 @@ class _SaavnHomePageState extends State<SaavnHomePage>
   int recentIndex = 0;
   int playlistIndex = 1;
 
+  bool _loading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) getHomePageData();
+    });
+  }
+
   Future<void> getHomePageData() async {
-    Map recievedData = await SaavnAPI().fetchHomePageData();
-    if (recievedData.isNotEmpty) {
-      Hive.box('cache').put('homepage', recievedData);
-      data = recievedData;
-      lists = ['recent', 'playlist', ...?data['collections'] as List?];
-      lists.insert((lists.length / 2).round(), 'likedArtists');
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final Map receivedData = await SaavnAPI()
+          .fetchHomePageData()
+          .timeout(const Duration(seconds: 15));
+      if (receivedData.isNotEmpty) {
+        data = receivedData;
+        await Hive.box('cache').put('homepage', data);
+        lists = ['recent', 'playlist', ...?data['collections'] as List?];
+        lists.insert((lists.length / 2).round(), 'likedArtists');
+        if (mounted) setState(() {});
+        try {
+          final Map formatted = await FormatResponse.formatPromoLists(data)
+              .timeout(const Duration(seconds: 10));
+          if (formatted.isNotEmpty) {
+            data = formatted;
+            await Hive.box('cache').put('homepage', data);
+            lists = ['recent', 'playlist', ...?data['collections'] as List?];
+            lists.insert((lists.length / 2).round(), 'likedArtists');
+          }
+        } catch (e) {
+          // Retain already fetched homepage if optional formatting fails.
+          debugPrint('Homepage formatting failed: $e');
+        }
+      } else if (data.isEmpty) {
+        _loadError = 'Could not load music. Check the internet connection or music service.';
+      }
+    } catch (e) {
+      debugPrint('Homepage loading failed: $e');
+      if (data.isEmpty) {
+        _loadError = 'Music service is not responding. Please retry.';
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() {});
-    recievedData = await FormatResponse.formatPromoLists(data);
-    if (recievedData.isNotEmpty) {
-      Hive.box('cache').put('homepage', recievedData);
-      data = recievedData;
-      lists = ['recent', 'playlist', ...?data['collections'] as List?];
-      lists.insert((lists.length / 2).round(), 'likedArtists');
-    }
-    setState(() {});
   }
 
   String getSubTitle(Map item) {
@@ -130,10 +163,6 @@ class _SaavnHomePageState extends State<SaavnHomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (!fetched) {
-      getHomePageData();
-      fetched = true;
-    }
     double boxSize =
         MediaQuery.sizeOf(context).height > MediaQuery.sizeOf(context).width
             ? MediaQuery.sizeOf(context).width / 2
@@ -147,8 +176,29 @@ class _SaavnHomePageState extends State<SaavnHomePage>
       playlistIndex = 0;
     }
     return (data.isEmpty && recentList.isEmpty)
-        ? const Center(
-            child: CircularProgressIndicator(),
+        ? Center(
+            child: _loading
+                ? const CircularProgressIndicator()
+                : Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.wifi_off_rounded, size: 44),
+                        const SizedBox(height: 12),
+                        Text(
+                          _loadError ?? 'No music loaded yet.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: getHomePageData,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
           )
         : ListView.builder(
             physics: const BouncingScrollPhysics(),

@@ -55,7 +55,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
           //   return const SizedBox();
           // }
           final MediaItem? mediaItem = snapshot.data;
-          // if (mediaItem == null) return const SizedBox();
+          if (mediaItem == null) return const SizedBox.shrink();
 
           final List preferredMiniButtons = Hive.box('settings').get(
             'preferredMiniButtons',
