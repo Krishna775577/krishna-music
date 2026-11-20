@@ -58,41 +58,69 @@ class _YouTubeState extends State<YouTube>
   @override
   bool get wantKeepAlive => true;
 
+  bool _loading = false;
+  String? _loadError;
+
   @override
   void initState() {
-    if (!status) {
-      YouTubeServices.instance.getMusicHome().then((value) {
-        status = true;
-        if (value.isNotEmpty) {
-          setState(() {
-            searchedList = value['body'] ?? [];
-            headList = value['head'] ?? [];
+    super.initState();
+    if (searchedList.isEmpty || !status) {
+      _loadHome();
+    }
+  }
 
-            Hive.box('cache').put('ytHome', value['body']);
-            Hive.box('cache').put('ytHomeHead', value['head']);
-          });
-        } else {
-          status = false;
-        }
+  Future<void> _loadHome() async {
+    if (_loading) return;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
       });
     }
-    // if (headList.isNotEmpty) {
-    // Timer.periodic(const Duration(seconds: 4), (Timer timer) {
-    //   if (_currentPage < headList.length - 1) {
-    //     _currentPage++;
-    //   } else {
-    //     _currentPage = 0;
-    //   }
-    //   if (_pageController.hasClients) {
-    //     _pageController.animateToPage(
-    //       _currentPage,
-    //       duration: const Duration(milliseconds: 350),
-    //       curve: Curves.easeIn,
-    //     );
-    //   }
-    // });
-    // }
-    super.initState();
+    try {
+      final result = await YouTubeServices.instance
+          .getMusicHome()
+          .timeout(const Duration(seconds: 40));
+      if (!mounted) return;
+      final List body = result['body'] ?? <dynamic>[];
+      final List head = result['head'] ?? <dynamic>[];
+      setState(() {
+        _loading = false;
+        status = body.isNotEmpty;
+        if (body.isNotEmpty) {
+          searchedList = body;
+          headList = head;
+        } else {
+          _loadError = 'Could not load YouTube videos. The service may be '
+              'unavailable or the YouTube extractor may need an update.';
+        }
+      });
+      if (body.isNotEmpty) {
+        await Hive.box('cache').put('ytHome', body);
+        await Hive.box('cache').put('ytHomeHead', head);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        status = false;
+        _loadError = 'YouTube could not respond: $error';
+      });
+    }
+  }
+
+  void _openSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SearchPage(
+          query: '',
+          fromHome: true,
+          searchType: 'yt',
+          autofocus: true,
+        ),
+      ),
+    );
   }
 
   @override
@@ -117,8 +145,41 @@ class _YouTubeState extends State<YouTube>
         child: Stack(
           children: [
             if (searchedList.isEmpty)
-              const Center(
-                child: CircularProgressIndicator(),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 80, 24, 20),
+                  child: _loading
+                      ? const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Loading YouTube videos...'),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.cloud_off_outlined, size: 46),
+                            const SizedBox(height: 12),
+                            Text(
+                              _loadError ?? 'No YouTube videos available.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: _loadHome,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
+                            ),
+                            TextButton.icon(
+                              onPressed: _openSearch,
+                              icon: const Icon(Icons.search),
+                              label: const Text('Search YouTube instead'),
+                            ),
+                          ],
+                        ),
+                ),
               )
             else
               SingleChildScrollView(

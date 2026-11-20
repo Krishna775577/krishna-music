@@ -121,80 +121,51 @@ class YouTubeServices {
     return metadata;
   }
 
+  // The old /music HTML parser depended on a YouTube page layout that
+  // frequently changes. Populate the same homepage card format using
+  // video searches instead. No YouTube Data API key is required.
   Future<Map<String, List>> getMusicHome() async {
-    final Uri link = Uri.https(
-      searchAuthority,
-      paths['music'].toString(),
-    );
-    try {
-      final Response response = await get(link);
-      if (response.statusCode != 200) {
-        return {};
-      }
-      final String searchResults =
-          RegExp(r'(\"contents\":{.*?}),\"metadata\"', dotAll: true)
-              .firstMatch(response.body)![1]!;
-      final Map data = json.decode('{$searchResults}') as Map;
-
-      final List result = data['contents']['twoColumnBrowseResultsRenderer']
-              ['tabs'][0]['tabRenderer']['content']['sectionListRenderer']
-          ['contents'] as List;
-
-      final List headResult = data['header']['carouselHeaderRenderer']
-          ['contents'][0]['carouselItemRenderer']['carouselItems'] as List;
-
-      final List shelfRenderer = result.map((element) {
-        return element['itemSectionRenderer']['contents'][0]['shelfRenderer'];
-      }).toList();
-
-      final List finalResult = shelfRenderer.map((element) {
-        final playlistItems = element['title']['runs'][0]['text'].trim() ==
-                    'Charts' ||
-                element['title']['runs'][0]['text'].trim() == 'Classements'
-            ? formatChartItems(
-                element['content']['horizontalListRenderer']['items'] as List,
-              )
-            : element['title']['runs'][0]['text']
-                        .toString()
-                        .contains('Music Videos') ||
-                    element['title']['runs'][0]['text']
-                        .toString()
-                        .contains('Nouveaux clips') ||
-                    element['title']['runs'][0]['text']
-                        .toString()
-                        .contains('En Musique Avec Moi') ||
-                    element['title']['runs'][0]['text']
-                        .toString()
-                        .contains('Performances Uniques')
-                ? formatVideoItems(
-                    element['content']['horizontalListRenderer']['items']
-                        as List,
-                  )
-                : formatItems(
-                    element['content']['horizontalListRenderer']['items']
-                        as List,
-                  );
-        if (playlistItems.isNotEmpty) {
-          return {
-            'title': element['title']['runs'][0]['text'],
-            'playlists': playlistItems,
-          };
-        } else {
-          Logger.root.severe(
-            "got null in getMusicHome for '${element['title']['runs'][0]['text']}'",
-          );
-          return null;
+    const Map<String, String> searches = {
+      'Hindi music videos': 'Hindi songs official music videos',
+      'Punjabi music videos': 'Punjabi songs official music videos',
+      'English music videos': 'English songs official music videos',
+    };
+    final List<Map<String, dynamic>> groups = [];
+    for (final section in searches.entries) {
+      try {
+        final results = await yt.search
+            .search(section.value)
+            .timeout(const Duration(seconds: 10));
+        final List<Map<String, dynamic>> videos = results
+            .where((video) => video.duration != null)
+            .take(10)
+            .map((video) => <String, dynamic>{
+                  'title': video.title,
+                  'type': 'video',
+                  'description': video.author,
+                  'count': 'Video',
+                  'videoId': video.id.value,
+                  'firstItemId': video.id.value,
+                  'image': video.thumbnails.highResUrl,
+                  'imageMin': video.thumbnails.highResUrl,
+                  'imageMedium': video.thumbnails.highResUrl,
+                  'imageStandard': video.thumbnails.highResUrl,
+                  'imageMax': video.thumbnails.maxResUrl,
+                })
+            .toList();
+        if (videos.isNotEmpty) {
+          groups.add({'title': section.key, 'playlists': videos});
         }
-      }).toList();
-
-      final List finalHeadResult = formatHeadItems(headResult);
-      finalResult.removeWhere((element) => element == null);
-
-      return {'body': finalResult, 'head': finalHeadResult};
-    } catch (e) {
-      Logger.root.severe('Error in getMusicHome: $e');
-      return {};
+      } catch (error, stack) {
+        Logger.root.warning(
+          'Could not load YouTube section: ${section.key}',
+          error,
+          stack,
+        );
+      }
     }
+    if (groups.isEmpty) return {};
+    return {'body': groups, 'head': <dynamic>[]};
   }
 
   Future<List> getSearchSuggestions({required String query}) async {
