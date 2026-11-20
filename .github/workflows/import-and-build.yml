@@ -1,0 +1,67 @@
+name: Import ZIP and Build Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-and-build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout your own repository
+        uses: actions/checkout@v4
+
+      - name: Import your uploaded project ZIP
+        shell: bash
+        run: |
+          if [ -f krishna-music-source-ready.zip ]; then
+            python3 - <<'PYCODE'
+          from pathlib import Path
+          from zipfile import ZipFile
+          z = ZipFile('krishna-music-source-ready.zip')
+          for info in z.infolist():
+              p = Path(info.filename)
+              if p.is_absolute() or '..' in p.parts:
+                  raise RuntimeError('Unsafe path in archive')
+          z.extractall('.')
+          PYCODE
+            rm krishna-music-source-ready.zip
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -A
+            if ! git diff --cached --quiet; then
+              git commit -m 'Import personal BlackHole-based app and website'
+              git push
+            fi
+          fi
+
+      - name: Install Java 11 for legacy Android Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Install Flutter compatible with source
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.6'
+          channel: stable
+          cache: true
+
+      - name: Fetch Flutter packages
+        run: flutter pub get
+
+      - name: Build test/debug Android APK
+        run: flutter build apk --debug
+
+      - name: Upload APK to GitHub Actions artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: krishna-music-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
