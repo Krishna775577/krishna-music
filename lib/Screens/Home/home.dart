@@ -1,6 +1,7 @@
+
 /*
  *  This file is part of BlackHole (https://github.com/Sangwan5688/BlackHole).
- * 
+ *
  * BlackHole is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -12,8 +13,8 @@
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public License
- * along with BlackHole.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ * along with BlackHole. If not, see <http://www.gnu.org/licenses/>.
+ *
  * Copyright (c) 2021-2023, Ankit Sangwan
  */
 
@@ -594,10 +595,6 @@ class _HomePageState extends State<HomePage> {
                 context,
                 controller: _controller,
                 itemCount: sectionsToShow.length,
-                navBarHeight: 60 +
-                    (rotated ? 0 : 70) +
-                    (useDense ? 0 : 10) +
-                    (rotated && useDense ? 10 : 0),
                 // confineInSafeArea: false,
                 onItemTapped: onItemTapped,
                 routeAndNavigatorSettings:
