@@ -61,12 +61,24 @@ class _YouTubeState extends State<YouTube>
   bool _loading = false;
   String? _loadError;
 
+  static const Map<String, String> _browseCategories = {
+    'Bollywood': 'bollywood songs',
+    'Hindi': 'hindi songs',
+    'Punjabi': 'punjabi songs',
+    'English': 'english music videos',
+    'Bhakti': 'hindi bhajan',
+    'Indie': 'indian indie music',
+    'Lo-fi': 'lofi songs',
+    'Haryanvi': 'haryanvi songs',
+    'Bhojpuri': 'bhojpuri songs',
+  };
+
   @override
   void initState() {
     super.initState();
-    if (searchedList.isEmpty || !status) {
-      _loadHome();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadHome();
+    });
   }
 
   Future<void> _loadHome() async {
@@ -80,7 +92,7 @@ class _YouTubeState extends State<YouTube>
     try {
       final result = await YouTubeServices.instance
           .getMusicHome()
-          .timeout(const Duration(seconds: 40));
+          .timeout(const Duration(seconds: 50));
       if (!mounted) return;
       final List body = result['body'] ?? <dynamic>[];
       final List head = result['head'] ?? <dynamic>[];
@@ -187,6 +199,51 @@ class _YouTubeState extends State<YouTube>
                 padding: const EdgeInsets.fromLTRB(10, 70, 10, 0),
                 child: Column(
                   children: [
+                    Row(
+                      children: [
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Browse music',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 17,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: _loading ? null : _loadHome,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: Text(_loading ? 'Updating' : 'Refresh'),
+                        ),
+                      ],
+                    ),
+                    SizedBox(
+                      height: 54,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: _browseCategories.entries.map((entry) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: ActionChip(
+                              label: Text(entry.key),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SearchPage(
+                                      query: entry.value,
+                                      fromDirectSearch: true,
+                                      searchType: 'yt',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     if (headList.isNotEmpty)
                       CarouselSlider.builder(
                         itemCount: headList.length,

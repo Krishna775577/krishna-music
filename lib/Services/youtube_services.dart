@@ -121,51 +121,104 @@ class YouTubeServices {
     return metadata;
   }
 
-  // The old /music HTML parser depended on a YouTube page layout that
-  // frequently changes. Populate the same homepage card format using
-  // video searches instead. No YouTube Data API key is required.
+  // Browser-friendly discovery: a failed YouTube search must not prevent
+  // other music sections from appearing. These are video search results,
+  // not official or personalised YouTube Music recommendations.
   Future<Map<String, List>> getMusicHome() async {
-    const Map<String, String> searches = {
-      'Hindi music videos': 'Hindi songs official music videos',
-      'Punjabi music videos': 'Punjabi songs official music videos',
-      'English music videos': 'English songs official music videos',
-    };
-    final List<Map<String, dynamic>> groups = [];
-    for (final section in searches.entries) {
-      try {
-        final results = await yt.search
-            .search(section.value)
-            .timeout(const Duration(seconds: 10));
-        final List<Map<String, dynamic>> videos = results
-            .where((video) => video.duration != null)
-            .take(10)
-            .map((video) => <String, dynamic>{
-                  'title': video.title,
-                  'type': 'video',
-                  'description': video.author,
-                  'count': 'Video',
-                  'videoId': video.id.value,
-                  'firstItemId': video.id.value,
-                  'image': video.thumbnails.highResUrl,
-                  'imageMin': video.thumbnails.highResUrl,
-                  'imageMedium': video.thumbnails.highResUrl,
-                  'imageStandard': video.thumbnails.highResUrl,
-                  'imageMax': video.thumbnails.maxResUrl,
-                })
-            .toList();
-        if (videos.isNotEmpty) {
-          groups.add({'title': section.key, 'playlists': videos});
+    const List<Map<String, String>> categories = [
+      {
+        'title': 'Bollywood hits',
+        'query': 'bollywood songs official music videos',
+        'fallback': 'bollywood music videos',
+      },
+      {
+        'title': 'Hindi music',
+        'query': 'hindi songs music videos',
+        'fallback': 'hindi songs',
+      },
+      {
+        'title': 'Punjabi music',
+        'query': 'punjabi songs official video',
+        'fallback': 'punjabi music',
+      },
+      {
+        'title': 'English music',
+        'query': 'english music videos',
+        'fallback': 'english pop songs',
+      },
+      {
+        'title': 'Devotional music',
+        'query': 'hindi bhajan devotional songs',
+        'fallback': 'bhajan songs',
+      },
+      {
+        'title': 'Indie and lo-fi',
+        'query': 'indian indie music videos',
+        'fallback': 'lofi hindi songs',
+      },
+    ];
+
+    Future<Map<String, dynamic>?> loadSection(
+      Map<String, String> category,
+    ) async {
+      for (final query in [category['query']!, category['fallback']!]) {
+        try {
+          final List<Video> results = await yt.search
+              .search(query)
+              .timeout(const Duration(seconds: 8));
+          final List<Map<String, dynamic>> videos = results
+              .where((video) => video.duration?.inSeconds != null &&
+                  video.duration!.inSeconds > 60)
+              .take(12)
+              .map((video) => <String, dynamic>{
+                    'title': video.title,
+                    'type': 'video',
+                    'description': video.author,
+                    'count': 'Video',
+                    'videoId': video.id.value,
+                    'firstItemId': video.id.value,
+                    'image': video.thumbnails.highResUrl,
+                    'imageMin': video.thumbnails.highResUrl,
+                    'imageMedium': video.thumbnails.highResUrl,
+                    'imageStandard': video.thumbnails.highResUrl,
+                    'imageMax': video.thumbnails.maxResUrl,
+                  })
+              .toList();
+          if (videos.isNotEmpty) {
+            return <String, dynamic>{
+              'title': category['title'],
+              'playlists': videos,
+            };
+          }
+        } catch (error, stack) {
+          Logger.root.warning(
+            'YouTube discovery search failed: $query',
+            error,
+            stack,
+          );
         }
-      } catch (error, stack) {
-        Logger.root.warning(
-          'Could not load YouTube section: ${section.key}',
-          error,
-          stack,
-        );
+      }
+      return null;
+    }
+
+    final List<Map<String, dynamic>> groups = [];
+    // Three at a time to avoid an excessive burst of YouTube requests.
+    for (int index = 0; index < categories.length; index += 3) {
+      final int end = index + 3 < categories.length
+          ? index + 3
+          : categories.length;
+      final sections = await Future.wait(
+        categories.sublist(index, end).map(loadSection),
+      );
+      for (final section in sections) {
+        if (section != null) groups.add(section);
       }
     }
-    if (groups.isEmpty) return {};
-    return {'body': groups, 'head': <dynamic>[]};
+
+    return <String, List>{
+      'body': groups,
+      'head': <dynamic>[],
+    };
   }
 
   Future<List> getSearchSuggestions({required String query}) async {
