@@ -93,27 +93,6 @@ class _HomePageState extends State<HomePage> {
     _controller.jumpToTab(index);
   }
 
-  // Future<bool> handleWillPop(BuildContext? context) async {
-  //   if (context == null) return false;
-  //   final now = DateTime.now();
-  //   final backButtonHasNotBeenPressedOrSnackBarHasBeenClosed =
-  //       backButtonPressTime == null ||
-  //           now.difference(backButtonPressTime!) >
-  //               const Duration(seconds: 3);
-  //
-  //   if (backButtonHasNotBeenPressedOrSnackBarHasBeenClosed) {
-  //     backButtonPressTime = now;
-  //     ShowSnackBar().showSnackBar(
-  //       context,
-  //       AppLocalizations.of(context)!.exitConfirm,
-  //       duration: const Duration(seconds: 2),
-  //       noAction: true,
-  //     );
-  //     return false;
-  //   }
-  //   return true;
-  // }
-
   void checkVersion() {
     PackageInfo.fromPlatform().then((PackageInfo packageInfo) {
       appVersion = packageInfo.version;
@@ -687,9 +666,9 @@ class _HomePageState extends State<HomePage> {
                 controller: _controller,
                 itemCount: sectionsToShow.length,
 
-                // Fixed for persistent_bottom_nav_bar 5.0.2:
-                // Removed unsupported navBarHeight parameter.
-                // Removed unsupported onItemTapped parameter.
+                // Android back-button runtime fix
+                handleAndroidBackButtonPress: true,
+                onWillPop: (context) async => true,
 
                 routeAndNavigatorSettings:
                     CustomWidgetRouteAndNavigatorSettings(
