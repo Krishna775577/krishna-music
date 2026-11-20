@@ -78,7 +78,7 @@ class YtMusicService {
       'accept': '*/*',
       'accept-encoding': 'gzip, deflate',
       'content-type': 'application/json',
-      'content-encoding': 'gzip',
+      // The POST body is JSON, not gzip-compressed.
       'origin': httpsYtmDomain,
       'cookie': 'CONSENT=YES+1',
     };

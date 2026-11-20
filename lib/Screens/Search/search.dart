@@ -17,6 +17,7 @@
  * Copyright (c) 2021-2023, Ankit Sangwan
  */
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:blackhole/APIs/api.dart';
@@ -68,6 +69,8 @@ class _SearchPageState extends State<SearchPage> {
   bool fetchResultCalled = false;
   bool fetched = false;
   bool alertShown = false;
+  String? searchError;
+  int _searchRequestId = 0;
   // bool albumFetched = false;
   bool? fromHome;
   List<Map<dynamic, dynamic>> searchedList = [];
@@ -100,48 +103,147 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
+  // Search requests can fail or hang when YouTube changes its endpoints.
+  // Always finish the loading state and ignore outdated responses.
   Future<void> fetchResults() async {
-    // this fetches songs, albums, playlists, artists, etc
-    Logger.root.info(
-      'fetching search results for ${query == '' ? widget.query : query}',
-    );
-    switch (searchType) {
-      case 'ytm':
-        Logger.root.info('calling yt music search');
-        YtMusicService()
-            .search(query == '' ? widget.query : query)
-            .then((value) {
-          setState(() {
-            final songSection =
-                value.firstWhere((element) => element['title'] == 'Songs');
-            songSection['allowViewAll'] = true;
-            searchedList = value;
-            fetched = true;
-          });
-        });
-      case 'yt':
-        Logger.root.info('calling youtube search');
-        YouTubeServices.instance
-            .fetchSearchResults(query == '' ? widget.query : query)
-            .then((value) {
-          setState(() {
-            searchedList = value;
-            fetched = true;
-          });
-        });
-      default:
-        Logger.root.info('calling saavn search');
-        searchedList = await SaavnAPI()
-            .fetchSearchResults(query == '' ? widget.query : query);
-        for (final element in searchedList) {
-          if (element['title'] != 'Top Result') {
-            element['allowViewAll'] = true;
-          }
+    final int requestId = ++_searchRequestId;
+    final String requestedType = searchType;
+    final String requestedQuery =
+        (query.isEmpty ? widget.query : query).trim();
+
+    Logger.root.info('Searching $requestedType for $requestedQuery');
+
+    List<Map<dynamic, dynamic>> results = [];
+    String? failure;
+
+    try {
+      if (requestedQuery.isEmpty) {
+        failure = 'Enter a song, artist, or video to search.';
+      } else {
+        switch (requestedType) {
+          case 'ytm':
+            // The unofficial YouTube Music parser sometimes returns a response
+            // without the old English 'Songs' section. Never use firstWhere
+            // without orElse; it used to leave the spinner on forever.
+            try {
+              final List<Map> ytmResults = await YtMusicService()
+                  .search(requestedQuery)
+                  .timeout(const Duration(seconds: 14));
+              for (final section in ytmResults) {
+                if (section['title'] == 'Songs') {
+                  section['allowViewAll'] = true;
+                }
+              }
+              results = ytmResults
+                  .map((section) => Map<dynamic, dynamic>.from(section))
+                  .toList();
+            } catch (error, stack) {
+              Logger.root.warning('YtMusic search failed', error, stack);
+            }
+
+            final bool hasYtmItems = results.any((section) {
+              final items = section['items'];
+              return items is List && items.isNotEmpty;
+            });
+
+            if (!hasYtmItems) {
+              // Fallback is clearly labelled; it is YouTube video search,
+              // NOT genuine YouTube Music search results.
+              final List<Map> ytResults = await YouTubeServices.instance
+                  .fetchSearchResults(requestedQuery)
+                  .timeout(const Duration(seconds: 16));
+              results = ytResults
+                  .map((section) => <dynamic, dynamic>{
+                        ...section,
+                        'title': 'YouTube videos (fallback)',
+                        'allowViewAll': false,
+                      })
+                  .toList();
+            }
+            break;
+
+          case 'yt':
+            final List<Map> ytResults = await YouTubeServices.instance
+                .fetchSearchResults(requestedQuery)
+                .timeout(const Duration(seconds: 16));
+            results = ytResults
+                .map((section) => Map<dynamic, dynamic>.from(section))
+                .toList();
+            break;
+
+          default:
+            final List<Map<dynamic, dynamic>> saavnResults = await SaavnAPI()
+                .fetchSearchResults(requestedQuery)
+                .timeout(const Duration(seconds: 18));
+            for (final section in saavnResults) {
+              if (section['title'] != 'Top Result') {
+                section['allowViewAll'] = true;
+              }
+            }
+            results = saavnResults;
         }
-        setState(() {
-          fetched = true;
-        });
+
+        if ((requestedType == 'yt' || requestedType == 'ytm') &&
+            !results.any((section) {
+              final items = section['items'];
+              return items is List && items.isNotEmpty;
+            })) {
+          results = [];
+          failure = 'No YouTube results were returned. The service may be '
+              'temporarily unavailable. Please try again.';
+        }
+      }
+    } on TimeoutException catch (error, stack) {
+      Logger.root.warning('Search timed out: $requestedType', error, stack);
+      failure = 'Search timed out. Check your connection and tap Retry.';
+    } catch (error, stack) {
+      Logger.root.warning('Search failed: $requestedType', error, stack);
+      failure = 'Could not load search results. Tap Retry to try again.';
     }
+
+    if (!mounted || requestId != _searchRequestId ||
+        requestedType != searchType) {
+      return;
+    }
+
+    setState(() {
+      searchedList = results;
+      searchError = failure;
+      fetched = true;
+    });
+  }
+
+  Widget searchFailure(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 42),
+            const SizedBox(height: 12),
+            Text(
+              searchError ?? 'No results found.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+              onPressed: () {
+                setState(() {
+                  ++_searchRequestId;
+                  fetched = false;
+                  fetchResultCalled = false;
+                  searchError = null;
+                  searchedList = [];
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> getTrendingSearch() async {
@@ -428,7 +530,9 @@ class _SearchPageState extends State<SearchPage> {
                                 child: CircularProgressIndicator(),
                               )
                             : (searchedList.isEmpty)
-                                ? nothingFound(context)
+                                ? (searchError != null
+                                    ? searchFailure(context)
+                                    : nothingFound(context))
                                 : SingleChildScrollView(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 5.0,
@@ -884,6 +988,8 @@ class _SearchPageState extends State<SearchPage> {
                       offset: query.length,
                     ),
                   );
+                  ++_searchRequestId;
+                  searchError = null;
                   searchedList = [];
                 },
               );
@@ -920,8 +1026,11 @@ class _SearchPageState extends State<SearchPage> {
           selected: searchType == element['key'],
           onSelected: (bool selected) {
             if (selected) {
+              ++_searchRequestId;
               searchType = element['key']!;
               fetched = false;
+              searchError = null;
+              searchedList = [];
               fetchResultCalled = false;
               Hive.box('settings').put('searchType', element['key']);
               if (element['key'] == 'ytm' || element['key'] == 'yt') {
