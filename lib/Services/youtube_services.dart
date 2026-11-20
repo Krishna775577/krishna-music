@@ -394,6 +394,10 @@ class YouTubeServices {
     String expireAt = '0';
     if (getUrl) {
       urlsData = await getYtStreamUrls(video.id.value);
+      if (urlsData.isEmpty) {
+        Logger.root.warning('No playable YouTube audio stream for ${video.id.value}');
+        return null;
+      }
       final Map finalUrlData =
           quality == 'High' ? urlsData.last : urlsData.first;
       finalUrl = finalUrlData['url'].toString();
@@ -548,8 +552,11 @@ class YouTubeServices {
   }
 
   String getExpireAt(String url) {
-    return RegExp('expire=(.*?)&').firstMatch(url)!.group(1) ??
-        (DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600 * 5.5).toString();
+    // Expiry can be the last query parameter; do not force a trailing '&'.
+    final String? expire = Uri.tryParse(url)?.queryParameters['expire'];
+    if (expire != null && int.tryParse(expire) != null) return expire;
+    // Unknown expiry: treat as short-lived to avoid caching a stale URL.
+    return (DateTime.now().millisecondsSinceEpoch ~/ 1000 + 1800).toString();
   }
 
   Future<List<Map>> getYtStreamUrls(String videoId) async {
@@ -560,22 +567,20 @@ class YouTubeServices {
       if (Hive.box('ytlinkcache').containsKey(videoId)) {
         final cachedData = Hive.box('ytlinkcache').get(videoId);
         if (cachedData is List) {
-          int minExpiredAt = 0;
-          for (final e in cachedData) {
-            final int cachedExpiredAt = int.parse(e['expireAt'].toString());
-            if (minExpiredAt == 0 || cachedExpiredAt < minExpiredAt) {
-              minExpiredAt = cachedExpiredAt;
-            }
-          }
-
-          if ((DateTime.now().millisecondsSinceEpoch ~/ 1000) + 350 >
-              minExpiredAt) {
-            // cache expired
+          final List<Map> saved = cachedData
+              .whereType<Map>()
+              .map((entry) => Map<dynamic, dynamic>.from(entry))
+              .toList();
+          final int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+          final bool expired = saved.isEmpty || saved.any((entry) {
+            final int exp = int.tryParse(entry['expireAt'].toString()) ?? 0;
+            return exp <= now + 350;
+          });
+          if (expired) {
             urlData = await getUri(videoId);
           } else {
-            // giving cache link
-            Logger.root.info('cache found for $videoId');
-            urlData = cachedData as List<Map>;
+            Logger.root.info('Fresh YouTube stream URL cache for $videoId');
+            urlData = saved;
           }
         } else {
           // old version cache is present
@@ -586,6 +591,7 @@ class YouTubeServices {
         urlData = await getUri(videoId);
       }
 
+      if (urlData.isEmpty) return <Map>[];
       try {
         await Hive.box('ytlinkcache')
             .put(
@@ -634,8 +640,9 @@ class YouTubeServices {
     String videoId, {
     bool onlyMp4 = false,
   }) async {
-    final StreamManifest manifest =
-        await yt.videos.streamsClient.getManifest(VideoId(videoId));
+    final StreamManifest manifest = await yt.videos.streamsClient
+        .getManifest(VideoId(videoId))
+        .timeout(const Duration(seconds: 18));
     final List<AudioOnlyStreamInfo> sortedStreamInfo = manifest.audioOnly
         .toList()
       ..sort((a, b) => a.bitrate.compareTo(b.bitrate));

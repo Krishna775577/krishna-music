@@ -44,6 +44,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:hive/hive.dart';
 import 'package:logging/logging.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SearchPage extends StatefulWidget {
   final String query;
@@ -103,6 +104,137 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
+  // Cache successful YouTube results briefly so going back to the same
+  // search does not require another flaky network request.
+  static final Map<String, List<Map>> _youtubeSearchCache = {};
+  static final Map<String, DateTime> _youtubeCacheTime = {};
+
+  // The unofficial YouTube search endpoint can intermittently return no
+  // results. Retry a small number of times instead of making the user tap
+  // Retry. No retry can guarantee success if YouTube blocks the client.
+  Future<List<Map>> _fetchYouTubeWithRetry(String searchQuery) async {
+    final String cacheKey = searchQuery.trim().toLowerCase();
+    final DateTime? savedAt = _youtubeCacheTime[cacheKey];
+    if (savedAt != null &&
+        DateTime.now().difference(savedAt) < const Duration(minutes: 10) &&
+        _youtubeSearchCache.containsKey(cacheKey)) {
+      return _youtubeSearchCache[cacheKey]!;
+    }
+
+    const int maxAttempts = 3;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final List<Map> sections = await YouTubeServices.instance
+            .fetchSearchResults(searchQuery)
+            .timeout(const Duration(seconds: 9));
+        final bool hasVideos = sections.any((section) {
+          final items = section['items'];
+          return items is List && items.isNotEmpty;
+        });
+        if (hasVideos) {
+          _youtubeSearchCache[cacheKey] = sections;
+          _youtubeCacheTime[cacheKey] = DateTime.now();
+          return sections;
+        }
+        Logger.root.warning(
+          'YouTube search returned no videos (attempt $attempt/$maxAttempts)',
+        );
+      } on TimeoutException catch (error, stack) {
+        Logger.root.warning(
+          'YouTube search timeout (attempt $attempt/$maxAttempts)',
+          error,
+          stack,
+        );
+      } catch (error, stack) {
+        Logger.root.warning(
+          'YouTube search error (attempt $attempt/$maxAttempts)',
+          error,
+          stack,
+        );
+      }
+      if (attempt < maxAttempts) {
+        await Future.delayed(Duration(milliseconds: 800 * attempt));
+      }
+    }
+    return <Map>[];
+  }
+
+  bool _openingYoutubeSong = false;
+
+  Future<void> _playYoutubeItem(Map item, {required bool preferYtMusic}) async {
+    if (_openingYoutubeSong) return;
+    _openingYoutubeSong = true;
+    final String videoId = item['id']?.toString() ?? '';
+    try {
+      Map? playable;
+      if (preferYtMusic) {
+        try {
+          final Map ytm = await YtMusicService()
+              .getSongData(videoId: videoId, data: item)
+              .timeout(const Duration(seconds: 16));
+          if (_isPlayableYoutubeMap(ytm)) playable = ytm;
+        } catch (error, stack) {
+          Logger.root.warning('YtMusic song metadata failed', error, stack);
+        }
+      }
+      if (playable == null) {
+        try {
+          playable = await YouTubeServices.instance
+              .formatVideoFromId(id: videoId, data: item)
+              .timeout(const Duration(seconds: 21));
+        } catch (error, stack) {
+          Logger.root.warning('YouTube stream lookup failed', error, stack);
+        }
+      }
+      if (_isPlayableYoutubeMap(playable)) {
+        await PlayerInvoke.init(
+          songsList: [playable!],
+          index: 0,
+          isOffline: false,
+        );
+        return;
+      }
+      if (mounted) _showYoutubePlaybackFailure(videoId);
+    } catch (error, stack) {
+      Logger.root.severe('YouTube playback preparation failed', error, stack);
+      if (mounted) _showYoutubePlaybackFailure(videoId);
+    } finally {
+      _openingYoutubeSong = false;
+    }
+  }
+
+  bool _isPlayableYoutubeMap(Map? song) {
+    if (song == null || song.isEmpty) return false;
+    final String? url = song['url']?.toString();
+    final Uri? uri = url == null ? null : Uri.tryParse(url);
+    return uri != null &&
+        (uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host.isNotEmpty;
+  }
+
+  void _showYoutubePlaybackFailure(String videoId) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'YouTube did not provide a playable audio stream. '
+          'You can open this video in the official YouTube app.',
+        ),
+        duration: const Duration(seconds: 7),
+        action: videoId.isEmpty
+            ? null
+            : SnackBarAction(
+                label: 'OPEN',
+                onPressed: () {
+                  launchUrl(
+                    Uri.https('www.youtube.com', '/watch', {'v': videoId}),
+                    mode: LaunchMode.externalApplication,
+                  );
+                },
+              ),
+      ),
+    );
+  }
+
   // Search requests can fail or hang when YouTube changes its endpoints.
   // Always finish the loading state and ignore outdated responses.
   Future<void> fetchResults() async {
@@ -149,9 +281,8 @@ class _SearchPageState extends State<SearchPage> {
             if (!hasYtmItems) {
               // Fallback is clearly labelled; it is YouTube video search,
               // NOT genuine YouTube Music search results.
-              final List<Map> ytResults = await YouTubeServices.instance
-                  .fetchSearchResults(requestedQuery)
-                  .timeout(const Duration(seconds: 16));
+              final List<Map> ytResults =
+                  await _fetchYouTubeWithRetry(requestedQuery);
               results = ytResults
                   .map((section) => <dynamic, dynamic>{
                         ...section,
@@ -163,9 +294,8 @@ class _SearchPageState extends State<SearchPage> {
             break;
 
           case 'yt':
-            final List<Map> ytResults = await YouTubeServices.instance
-                .fetchSearchResults(requestedQuery)
-                .timeout(const Duration(seconds: 16));
+            final List<Map> ytResults =
+                await _fetchYouTubeWithRetry(requestedQuery);
             results = ytResults
                 .map((section) => Map<dynamic, dynamic>.from(section))
                 .toList();
@@ -526,8 +656,22 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                       Expanded(
                         child: !fetched
-                            ? const Center(
-                                child: CircularProgressIndicator(),
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(),
+                                    if (searchType == 'yt' || searchType == 'ytm')
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 14),
+                                        child: Text(
+                                          'Searching... Automatically retrying if needed',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               )
                             : (searchedList.isEmpty)
                                 ? (searchError != null
@@ -599,34 +743,10 @@ class _SearchPageState extends State<SearchPage> {
                                                                             ) =>
                                                                                 SongsListViewPage(
                                                                               onTap: (index, listItems) async {
-                                                                                final Map response = await YtMusicService().getSongData(
-                                                                                  videoId: items[index]['id'].toString(),
-                                                                                  data: items[index] as Map,
-                                                                                  quality: Hive.box('settings')
-                                                                                      .get(
-                                                                                        'ytQuality',
-                                                                                        defaultValue: 'Low',
-                                                                                      )
-                                                                                      .toString(),
+                                                                                await _playYoutubeItem(
+                                                                                  items[index] as Map,
+                                                                                  preferYtMusic: true,
                                                                                 );
-
-                                                                                if (response.isNotEmpty) {
-                                                                                  PlayerInvoke.init(
-                                                                                    songsList: [
-                                                                                      response,
-                                                                                    ],
-                                                                                    index: 0,
-                                                                                    isOffline: false,
-                                                                                  );
-                                                                                } else {
-                                                                                  ShowSnackBar().showSnackBar(
-                                                                                    context,
-                                                                                    AppLocalizations.of(
-                                                                                      context,
-                                                                                    )!
-                                                                                        .ytLiveAlert,
-                                                                                  );
-                                                                                }
                                                                               },
                                                                               title: title,
                                                                               subtitle: '\nShowing Search Results for',
@@ -882,52 +1002,10 @@ class _SearchPageState extends State<SearchPage> {
                                                                     'song' ||
                                                                 itemType ==
                                                                     'video') {
-                                                              final Map? response = (itemType ==
-                                                                      'video')
-                                                                  ? await YouTubeServices
-                                                                      .instance
-                                                                      .formatVideoFromId(
-                                                                      id: items[index]
-                                                                              [
-                                                                              'id']
-                                                                          .toString(),
-                                                                      data: items[
-                                                                              index]
-                                                                          as Map,
-                                                                    )
-                                                                  : await YtMusicService()
-                                                                      .getSongData(
-                                                                      videoId: items[index]
-                                                                              [
-                                                                              'id']
-                                                                          .toString(),
-                                                                      data: items[
-                                                                              index]
-                                                                          as Map,
-                                                                    );
-
-                                                              if (response !=
-                                                                  null) {
-                                                                PlayerInvoke
-                                                                    .init(
-                                                                  songsList: [
-                                                                    response,
-                                                                  ],
-                                                                  index: 0,
-                                                                  isOffline:
-                                                                      false,
-                                                                );
-                                                              } else {
-                                                                ShowSnackBar()
-                                                                    .showSnackBar(
-                                                                  context,
-                                                                  AppLocalizations
-                                                                          .of(
-                                                                    context,
-                                                                  )!
-                                                                      .ytLiveAlert,
-                                                                );
-                                                              }
+                                                              await _playYoutubeItem(
+                                                                items[index] as Map,
+                                                                preferYtMusic: itemType == 'song',
+                                                              );
                                                             }
                                                           }
                                                         : () {
