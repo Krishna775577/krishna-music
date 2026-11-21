@@ -182,7 +182,7 @@ class _OfficialYouTubePlayerPageState extends State<OfficialYouTubePlayerPage> {
                     final bool error =
                         value.error.toString() != 'YoutubeError.none';
                     final bool failedToStart = _showStallHelp &&
-                        (!value.isReady || buffering);
+                        (value.playerState == PlayerState.unknown || buffering);
                     return Column(
                       children: <Widget>[
                         if (buffering)
@@ -244,11 +244,9 @@ class _OfficialYouTubePlayerPageState extends State<OfficialYouTubePlayerPage> {
                               tooltip: playing ? 'Pause' : 'Play',
                               iconSize: 50,
                               color: _accent,
-                              onPressed: value.isReady
-                                  ? () => playing
-                                      ? _controller.pauseVideo()
-                                      : _controller.playVideo()
-                                  : null,
+                              onPressed: () => playing
+                                  ? _controller.pauseVideo()
+                                  : _controller.playVideo(),
                               icon: Icon(playing
                                   ? Icons.pause_circle_filled_rounded
                                   : Icons.play_circle_fill_rounded),
