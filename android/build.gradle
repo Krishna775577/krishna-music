@@ -1,130 +1,28 @@
-
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
+buildscript {
+    ext.kotlin_version = '1.8.22'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.4.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
-def flutterRoot = localProperties.getProperty('flutter.sdk')
-
-if (flutterRoot == null) {
-    throw new GradleException(
-        "Flutter SDK not found. Define location with flutter.sdk in local.properties."
-    )
-}
-
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
-}
-
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
-}
-
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-
-// Signing configuration
-def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file('key.properties')
-
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(
-        new FileInputStream(keystorePropertiesFile)
-    )
-}
-
-def hasReleaseSigning =
-        keystoreProperties['storeFile'] != null &&
-        keystoreProperties['storePassword'] != null &&
-        keystoreProperties['keyAlias'] != null &&
-        keystoreProperties['keyPassword'] != null
-
-android {
-
-    // Updated for AndroidX WebKit
-    compileSdkVersion 34
-
-    ndkVersion "21.4.7075529"
-
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
-
-    defaultConfig {
-        applicationId "com.shadow.blackhole"
-
-        minSdkVersion 21
-
-        targetSdkVersion 29
-
-        versionCode flutterVersionCode.toInteger()
-
-        versionName flutterVersionName
-    }
-
-    signingConfigs {
-        release {
-            if (hasReleaseSigning) {
-                storeFile file(
-                    keystoreProperties['storeFile']
-                )
-
-                storePassword keystoreProperties['storePassword']
-
-                keyAlias keystoreProperties['keyAlias']
-
-                keyPassword keystoreProperties['keyPassword']
-
-                v1SigningEnabled true
-                v2SigningEnabled true
-            }
-        }
-    }
-
-    buildTypes {
-
-        debug {
-            debuggable true
-            signingConfig signingConfigs.debug
-        }
-
-        release {
-            if (hasReleaseSigning) {
-                signingConfig signingConfigs.release
-            } else {
-                // Local testing only.
-                // Do not distribute a debug-signed release.
-                signingConfig signingConfigs.debug
-            }
-
-            minifyEnabled false
-            shrinkResources false
-        }
-    }
-
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
-    }
-
-    buildFeatures {
-        viewBinding true
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
     }
 }
 
-flutter {
-    source '../..'
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    project.evaluationDependsOn(':app')
 }
 
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
 }
