@@ -13,67 +13,183 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout your own repository
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Import your uploaded project ZIP
+      - name: Import optional ZIP and repair Android build files
         shell: bash
         run: |
-          if [ -f krishna-music-source-ready.zip ]; then
-            python3 - <<'PYCODE'
+          set -euo pipefail
+          python3 - <<'PYCODE'
           from pathlib import Path
           from zipfile import ZipFile
+          import re
 
-          z = ZipFile('krishna-music-source-ready.zip')
+          archive = Path('krishna-music-source-ready.zip')
 
-          for info in z.infolist():
-              p = Path(info.filename)
-              if p.is_absolute() or '..' in p.parts:
-                  raise RuntimeError('Unsafe path in archive')
+          if archive.is_file():
+              print('Found ZIP overlay. Importing safe app files (not workflow files).')
 
-          z.extractall('.')
+              with ZipFile(archive) as z:
+                  for info in z.infolist():
+                      name = info.filename
+                      p = Path(name)
+
+                      if info.is_dir():
+                          continue
+
+                      if not name or p.is_absolute() or '..' in p.parts or chr(92) in name:
+                          raise RuntimeError(f'Unsafe ZIP path: {name}')
+
+                      if name.startswith('.github/workflows/'):
+                          print(f'Skipping workflow file: {name}')
+                          continue
+
+                      if name in {'krishna-music-source-ready.zip'}:
+                          continue
+
+                      dest = Path(name)
+                      dest.parent.mkdir(parents=True, exist_ok=True)
+                      dest.write_bytes(z.read(info))
+
+              archive.unlink()
+          else:
+              print('No ZIP overlay found; fixing the existing repository directly.')
+
+          root = Path('android/build.gradle')
+          root.parent.mkdir(parents=True, exist_ok=True)
+
+          root.write_text(
+              'buildscript {\n'
+              '    ext.kotlin_version = \'1.8.22\'\n'
+              '    repositories {\n'
+              '        google()\n'
+              '        mavenCentral()\n'
+              '    }\n'
+              '    dependencies {\n'
+              '        classpath \'com.android.tools.build:gradle:7.4.2\'\n'
+              '        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"\n'
+              '    }\n'
+              '}\n\n'
+              'allprojects {\n'
+              '    repositories {\n'
+              '        google()\n'
+              '        mavenCentral()\n'
+              '    }\n'
+              '}\n\n'
+              'rootProject.buildDir = \'../build\'\n'
+              'subprojects {\n'
+              '    project.buildDir = "${rootProject.buildDir}/${project.name}"\n'
+              '    project.evaluationDependsOn(\':app\')\n'
+              '}\n\n'
+              'tasks.register(\'clean\', Delete) {\n'
+              '    delete rootProject.buildDir\n'
+              '}\n',
+              encoding='utf-8'
+          )
+
+          wrapper = Path(
+              'android/gradle/wrapper/gradle-wrapper.properties'
+          )
+
+          wrapper.parent.mkdir(
+              parents=True,
+              exist_ok=True
+          )
+
+          wrapper.write_text(
+              'distributionBase=GRADLE_USER_HOME\n'
+              'distributionPath=wrapper/dists\n'
+              'zipStoreBase=GRADLE_USER_HOME\n'
+              'zipStorePath=wrapper/dists\n'
+              'distributionUrl=https\\://services.gradle.org/distributions/gradle-7.6.1-all.zip\n',
+              encoding='utf-8'
+          )
+
+          app = Path('android/app/build.gradle')
+
+          if not app.is_file():
+              raise RuntimeError(
+                  'android/app/build.gradle missing: full project source must exist in repository'
+              )
+
+          content = app.read_text(
+              encoding='utf-8'
+          )
+
+          fixed, count = re.subn(
+              r'(?m)^\s*(?:compileSdkVersion|compileSdk)\s*(?:=\s*)?(?:[0-9]+|flutter\.compileSdkVersion)\s*$',
+              '    compileSdkVersion 34',
+              content
+          )
+
+          if count != 1:
+              raise RuntimeError(
+                  f'Expected exactly one compileSdk declaration; found {count}; check android/app/build.gradle'
+              )
+
+          app.write_text(
+              fixed,
+              encoding='utf-8'
+          )
+
+          if re.search(
+              r'(?m)^\s*apply\s+plugin:\s*[\"\']com\.android\.application',
+              root.read_text()
+          ):
+              raise RuntimeError(
+                  'Root build.gradle still contains app plugin!'
+              )
+
+          assert (
+              "apply plugin: 'com.android.application'" in app.read_text()
+              or 'id "com.android.application"' in app.read_text()
+          ), 'App module must apply Android application plugin'
+
+          assert Path('pubspec.yaml').is_file(), (
+              'pubspec.yaml missing: repository contains only patch, not full Flutter app'
+          )
+
+          print(
+              'Verified: root Gradle has no app plugin; app Gradle uses compileSdk 34; Gradle wrapper 7.6.1.'
+          )
           PYCODE
 
-            # FIX: Skip workflow file requiring special permission
-            rm -f .github/workflows/quality-profile.yml
+      - name: Persist corrected source
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-            rm krishna-music-source-ready.zip
+          git add -A
 
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-            git add -A
-
-            if ! git diff --cached --quiet; then
-              git commit -m 'Import Krishna Music stability fixes'
-              git push
-            fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Repair Android build files for SDK 34'
+            git push origin HEAD:main
           fi
 
-      - name: Install Java 11 for legacy Android Gradle
+      - name: Install Java 11
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '11'
 
-      - name: Install Flutter compatible with source
+      - name: Install Flutter 3.19.6
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.6'
           channel: stable
           cache: true
 
-      - name: Fetch Flutter packages
+      - name: Get Dart packages
         run: flutter pub get
 
-      - name: Build test/debug Android APK
+      - name: Build debug APK
         run: flutter build apk --debug
 
-      - name: Upload APK to GitHub Actions artifacts
-        if: success()
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: krishna-music-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
-          retention-days: 7
