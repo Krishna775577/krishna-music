@@ -1,4 +1,5 @@
 {
   "aboutLine1": "Dette er et open-source projekt som du kan finde på",
-  "@aboutLine1": {}
+  "@aboutLine1": {},
+  "appTitle": "Jotify"
 }

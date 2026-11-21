@@ -60,7 +60,7 @@ class _HomePageState extends State<HomePage> {
   String name =
       Hive.box('settings').get('name', defaultValue: 'Guest') as String;
   bool checkUpdate =
-      Hive.box('settings').get('checkUpdate', defaultValue: true) as bool;
+      Hive.box('settings').get('checkUpdate', defaultValue: false) as bool;
   bool autoBackup =
       Hive.box('settings').get('autoBackup', defaultValue: false) as bool;
   List sectionsToShow = Hive.box('settings').get(
@@ -113,7 +113,7 @@ class _HomePageState extends State<HomePage> {
     PackageInfo.fromPlatform().then((PackageInfo packageInfo) {
       appVersion = packageInfo.version;
 
-      if (checkUpdate) {
+      if (false && checkUpdate) {
         Logger.root.info('Checking for update');
         GitHub.getLatestVersion().then((String version) async {
           if (compareVersion(

@@ -66,5 +66,6 @@
   "albums": "ఆల్బమ్",
   "@albums": {},
   "album": "ఆల్బమ్",
-  "@album": {}
+  "@album": {},
+  "appTitle": "Jotify"
 }

@@ -52,6 +52,8 @@ class SongsListPage extends StatefulWidget {
 class _SongsListPageState extends State<SongsListPage> {
   int page = 1;
   bool loading = false;
+  bool hasMoreSongs = true;
+  final Set<String> seenSongKeys = <String>{};
   List songList = [];
   bool fetched = false;
   bool isSharePopupShown = false;
@@ -66,8 +68,7 @@ class _SongsListPageState extends State<SongsListPage> {
       if (_scrollController.position.pixels >=
               _scrollController.position.maxScrollExtent &&
           widget.listItem['type'].toString() == 'songs' &&
-          !loading) {
-        page += 1;
+          !loading && hasMoreSongs) {
         _fetchSongs();
       }
     });
@@ -85,23 +86,49 @@ class _SongsListPageState extends State<SongsListPage> {
       switch (widget.listItem['type'].toString()) {
         case 'songs':
           SaavnAPI()
-              .fetchSongSearchResults(
-            searchQuery: widget.listItem['id'].toString(),
-            page: page,
-          )
+              .fetchExpandedSongSearchResults(
+                searchQuery: widget.listItem['id'].toString(),
+                count: 20,
+                page: page,
+              )
               .then((value) {
+            if (!mounted) return;
+            final nextSongs = (value['songs'] as List?) ?? [];
+            int newlyAdded = 0;
             setState(() {
-              songList.addAll(value['songs'] as List);
+              for (final dynamic raw in nextSongs) {
+                if (raw is! Map) continue;
+                final key = (raw['id'] ?? raw['perma_url'] ?? raw['url'] ??
+                    '${raw['title']}|${raw['subtitle']}').toString().toLowerCase();
+                if (seenSongKeys.add(key)) {
+                  songList.add(raw);
+                  newlyAdded++;
+                }
+              }
+              // Page changes only after successfully loading new results.
+              final error = value['error']?.toString() ?? '';
+              if (error.isEmpty) {
+                if (newlyAdded > 0) page++;
+                hasMoreSongs = value['hasMore'] == true && newlyAdded > 0;
+              }
               fetched = true;
               loading = false;
             });
-            if (value['error'].toString() != '') {
+            final error = value['error']?.toString() ?? '';
+            if (error.isNotEmpty) {
               ShowSnackBar().showSnackBar(
                 context,
-                'Error: ${value["error"]}',
+                'Search failed. Please retry.',
                 duration: const Duration(seconds: 3),
               );
             }
+          }).catchError((Object error) {
+            if (!mounted) return;
+            setState(() {
+              fetched = true;
+              loading = false;
+            });
+            Logger.root.warning('Saavn search pagination failed: $error');
           });
         case 'album':
           SaavnAPI()

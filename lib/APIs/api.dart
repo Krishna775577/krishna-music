@@ -289,12 +289,12 @@ class SaavnAPI {
     int page = 1,
   }) async {
     final String params =
-        'p=$page&q=$searchQuery&n=$count&${endpoints["getResults"]}';
+        'p=$page&q=${Uri.encodeQueryComponent(searchQuery.trim())}&n=$count&${endpoints["getResults"]}';
     try {
-      final res = await getResponse(params);
+      final res = await getResponse(params).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         final Map getMain = json.decode(res.body) as Map;
-        final List responseList = getMain['results'] as List;
+        final List responseList = (getMain['results'] as List?) ?? [];
         final finalSongs =
             await FormatResponse.formatSongsResponse(responseList, 'song');
         if (finalSongs.length > count) {
@@ -319,6 +319,69 @@ class SaavnAPI {
     }
   }
 
+  // Jotify: One result page alone cannot cover alternate regional spellings.
+  // Merge exact search with a bounded set of common Khama/Khamma spellings.
+  // This is a best-effort search of Saavn's catalog, not a promise of every song.
+  Future<Map> fetchExpandedSongSearchResults({
+    required String searchQuery,
+    int count = 20,
+    int page = 1,
+  }) async {
+    final query = searchQuery.trim();
+    if (query.isEmpty) {
+      return {'songs': <dynamic>[], 'error': '', 'hasMore': false};
+    }
+
+    final List<String> queries = [query];
+    final lower = query.toLowerCase();
+    if (RegExp(r'\b(khama|khamma)\b').hasMatch(lower)) {
+      // A phrase such as 'Khama Ray Khama' may not match catalog spellings
+      // like 'Khamma Ghani', 'Khama Re', or simply 'Khama'.
+      for (final alternative in <String>['khama', 'khamma']) {
+        if (!queries.any((value) => value.toLowerCase() == alternative)) {
+          queries.add(alternative);
+        }
+      }
+    }
+
+    final responses = await Future.wait(queries.map((variant) {
+      return fetchSongSearchResults(
+        searchQuery: variant,
+        page: page,
+        count: count,
+      );
+    }));
+
+    final List merged = [];
+    final Set<String> seen = {};
+    bool hasMore = false;
+    String? firstError;
+    bool hasSuccessfulSearch = false;
+
+    for (final response in responses) {
+      final items = (response['songs'] as List?) ?? [];
+      final error = response['error']?.toString() ?? '';
+      if (error.isEmpty) {
+        hasSuccessfulSearch = true;
+        if (items.length >= count) hasMore = true;
+      } else if (firstError == null) {
+        firstError = error;
+      }
+
+      for (final dynamic raw in items) {
+        if (raw is! Map) continue;
+        final id = (raw['id'] ?? raw['perma_url'] ?? raw['url'] ??
+          '${raw['title']}|${raw['subtitle']}').toString().toLowerCase();
+        if (seen.add(id)) merged.add(raw);
+      }
+    }
+    return {
+      'songs': merged,
+      'error': hasSuccessfulSearch ? '' : (firstError ?? ''),
+      'hasMore': hasMore,
+    };
+  }
+
   Future<List<Map<String, dynamic>>> fetchSearchResults(
     String searchQuery,
   ) async {
@@ -332,10 +395,16 @@ class SaavnAPI {
     // List searchedShowList = [];
     // List searchedEpisodeList = [];
 
+    final Future<Map> songResponseFuture = fetchExpandedSongSearchResults(
+      searchQuery: searchQuery,
+      count: 20,
+    );
     final String params =
-        '__call=autocomplete.get&cc=in&includeMetaTags=1&query=$searchQuery';
+        '__call=autocomplete.get&cc=in&includeMetaTags=1&query=${Uri.encodeQueryComponent(searchQuery.trim())}';
 
-    final res = await getResponse(params, usev4: false);
+    try {
+    final res = await getResponse(params, usev4: false)
+        .timeout(const Duration(seconds: 9));
     if (res.statusCode == 200) {
       final getMain = json.decode(res.body);
       final List albumResponseList = getMain['albums']['data'] as List;
@@ -389,15 +458,6 @@ class SaavnAPI {
         result['Artists'] = searchedArtistList;
       }
 
-      searchedSongList = (await SaavnAPI().fetchSongSearchResults(
-            searchQuery: searchQuery,
-            count: 5,
-          ))['songs'] as List? ??
-          [];
-      if (searchedSongList.isNotEmpty) {
-        result['Songs'] = searchedSongList;
-      }
-
       if (topQuery.isNotEmpty &&
           (topQuery[0]['type'] != 'playlist' ||
               topQuery[0]['type'] == 'artist' ||
@@ -427,6 +487,21 @@ class SaavnAPI {
         } else {
           position[getMain['songs']['position'] as int] = 'Songs';
         }
+      }
+    }
+
+    } catch (error) {
+      Logger.root.warning('Saavn autocomplete failed, showing direct song results: $error');
+    }
+
+    // Always fetch actual song search results. Autocomplete only provides a
+    // handful of suggestions and may not include lesser-known regional tracks.
+    final songResponse = await songResponseFuture;
+    searchedSongList = (songResponse['songs'] as List?) ?? [];
+    if (searchedSongList.isNotEmpty) {
+      result['Songs'] = searchedSongList.take(24).toList();
+      if (!position.containsValue('Songs')) {
+        position[1000] = 'Songs';
       }
     }
 

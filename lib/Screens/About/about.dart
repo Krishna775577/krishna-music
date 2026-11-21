@@ -60,7 +60,7 @@ class _AboutScreenState extends State<AboutScreen> {
               child: const Image(
                 fit: BoxFit.fill,
                 image: AssetImage(
-                  'assets/icon-white-trans.png',
+                  'assets/ic_launcher.png',
                 ),
               ),
             ),

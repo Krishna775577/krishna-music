@@ -1,5 +1,5 @@
 name: blackhole
-description: An Open Source Music Player App.
+description: Jotify - music player (based on the open-source BlackHole project).
 
 # Prevent accidental publishing to pub.dev.
 publish_to: "none"
@@ -77,7 +77,7 @@ flutter:
     - assets/
 
 msix_config:
-  display_name: BlackHole
+  display_name: Jotify
   publisher_display_name: Ankit Sangwan
   identity_name: com.shadow.blackhole
   icons_background_color: transparent
