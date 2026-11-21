@@ -1,0 +1,10 @@
+Krishna Music YouTube playback hotfix (source-level only)
+Source base: audio_service.dart from latest stability pack prepared in this conversation.
+Changes:
+1. YouTube sources bypass LockCachingAudioSource when streamed directly or obtained from ytlinkcache.
+2. Cached URLs respect Low/High setting.
+3. skipToMediaItem is awaited before play() is invoked, fixing a potential race.
+No changes to Saavn, search, homepage, or pubspec.
+Known limitation: If YouTube returns HTTP 403/stream unavailable, this cannot bypass the service restriction.
+Not built or run on Android in this environment.
+Recommended A/B test: disable Cache Song; test one YouTube, one YtMusic, and one Saavn song. Inspect adb logcat for ExoPlaybackException/HttpDataSourceException and HTTP status if failure persists.

@@ -473,17 +473,17 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
                     Logger.root.info(
                       'youtube link found in cache for ${mediaItem.title}',
                     );
-                    if (cacheSong) {
-                      // Change this to handle yt quality
-                      audioSource = LockCachingAudioSource(
-                        Uri.parse(cachedData.last['url'].toString()),
-                      );
-                    } else {
-                      // Change this to handle yt quality
-                      audioSource = AudioSource.uri(
-                        Uri.parse(cachedData.last['url'].toString()),
-                      );
-                    }
+                    // YouTube URLs are signed and short-lived. Do not use
+                    // the local proxy cache for YouTube media streams.
+                    // Respect the user's Low/High YouTube quality setting.
+                    final String ytQuality = Hive.box('settings')
+                        .get('ytQuality', defaultValue: 'Low').toString();
+                    final Map stream = ytQuality == 'High'
+                        ? cachedData.last as Map
+                        : cachedData.first as Map;
+                    audioSource = AudioSource.uri(
+                      Uri.parse(stream['url'].toString()),
+                    );
                     mediaItem.extras!['url'] = cachedData.last['url'];
                     _mediaItemExpando[audioSource] = mediaItem;
                     return audioSource;
@@ -507,15 +507,10 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
                 }
               }
             } else {
-              if (cacheSong) {
-                audioSource = LockCachingAudioSource(
-                  Uri.parse(mediaItem.extras!['url'].toString()),
-                );
-              } else {
-                audioSource = AudioSource.uri(
-                  Uri.parse(mediaItem.extras!['url'].toString()),
-                );
-              }
+              // Avoid the file-cache proxy for YouTube's expiring URLs.
+              audioSource = AudioSource.uri(
+                Uri.parse(mediaItem.extras!['url'].toString()),
+              );
               _mediaItemExpando[audioSource] = mediaItem;
               return audioSource;
             }
@@ -697,7 +692,7 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
     if (idx == null && id == null) return;
     final index = idx ?? queue.value.indexWhere((item) => item.id == id);
     if (index != -1) {
-      _player!.seek(
+      await _player!.seek(
         Duration.zero,
         index: _player!.shuffleModeEnabled
             ? _player!.shuffleIndices![index]
@@ -915,7 +910,8 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
     }
 
     if (name == 'skipToMediaItem') {
-      skipToMediaItem(extras!['id'] as String?, extras['index'] as int?);
+      // Finish seeking to the selected item before issuing play().
+      return skipToMediaItem(extras!['id'] as String?, extras['index'] as int?);
     }
     return super.customAction(name, extras);
   }
