@@ -1,3 +1,4 @@
+
 name: Import ZIP and Build Android APK
 
 on:
@@ -10,6 +11,7 @@ jobs:
   import-and-build:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
+
     steps:
       - name: Checkout your own repository
         uses: actions/checkout@v4
@@ -21,19 +23,29 @@ jobs:
             python3 - <<'PYCODE'
           from pathlib import Path
           from zipfile import ZipFile
+
           z = ZipFile('krishna-music-source-ready.zip')
+
           for info in z.infolist():
               p = Path(info.filename)
               if p.is_absolute() or '..' in p.parts:
                   raise RuntimeError('Unsafe path in archive')
+
           z.extractall('.')
           PYCODE
+
+            # FIX: Skip workflow file requiring special permission
+            rm -f .github/workflows/quality-profile.yml
+
             rm krishna-music-source-ready.zip
+
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
             git add -A
+
             if ! git diff --cached --quiet; then
-              git commit -m 'Import personal BlackHole-based app and website'
+              git commit -m 'Import Krishna Music stability fixes'
               git push
             fi
           fi
