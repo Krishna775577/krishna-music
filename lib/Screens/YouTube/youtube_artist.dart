@@ -24,6 +24,7 @@ import 'package:blackhole/CustomWidgets/image_card.dart';
 import 'package:blackhole/CustomWidgets/song_tile_trailing_menu.dart';
 import 'package:blackhole/Services/player_service.dart';
 import 'package:blackhole/Services/yt_music.dart';
+import 'package:blackhole/Services/youtube_embed_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
@@ -147,21 +148,8 @@ class _YouTubeArtistState extends State<YouTubeArtist> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                               onTap: () async {
-                                setState(() {
-                                  done = false;
-                                });
-                                final Map response =
-                                    await YtMusicService().getSongData(
-                                  videoId: entry['id'].toString(),
-                                  data: entry,
-                                );
-                                setState(() {
-                                  done = true;
-                                });
-                                PlayerInvoke.init(
-                                  songsList: [response],
-                                  index: 0,
-                                  isOffline: false,
+                                await YouTubeEmbedNavigation.openFromContext(
+                                  context, entry,
                                 );
                                 // for (var i = 0;
                                 //     i < searchedList.length;

@@ -30,6 +30,7 @@ import 'package:blackhole/Screens/Player/audioplayer.dart';
 import 'package:blackhole/constants/constants.dart';
 import 'package:blackhole/constants/languagecodes.dart';
 import 'package:blackhole/providers/audio_service_provider.dart';
+import 'package:blackhole/Services/youtube_embed_navigation.dart';
 import 'package:blackhole/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -161,7 +162,7 @@ class _MyAppState extends State<MyApp> {
   Locale _locale = const Locale('en', '');
   late StreamSubscription _intentTextStreamSubscription;
   late StreamSubscription _intentDataStreamSubscription;
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> navigatorKey = YouTubeEmbedNavigation.navigatorKey;
 
   @override
   void dispose() {

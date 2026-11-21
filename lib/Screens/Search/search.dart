@@ -38,6 +38,7 @@ import 'package:blackhole/Screens/Search/artists.dart';
 import 'package:blackhole/Screens/YouTube/youtube_artist.dart';
 import 'package:blackhole/Screens/YouTube/youtube_playlist.dart';
 import 'package:blackhole/Services/player_service.dart';
+import 'package:blackhole/Services/youtube_embed_navigation.dart';
 import 'package:blackhole/Services/youtube_services.dart';
 import 'package:blackhole/Services/yt_music.dart';
 import 'package:flutter/material.dart';
@@ -162,77 +163,23 @@ class _SearchPageState extends State<SearchPage> {
   bool _openingYoutubeSong = false;
 
   Future<void> _playYoutubeItem(Map item, {required bool preferYtMusic}) async {
-    if (_openingYoutubeSong) return;
+    if (_openingYoutubeSong || !mounted) return;
     _openingYoutubeSong = true;
-    final String videoId = item['id']?.toString() ?? '';
     try {
-      Map? playable;
-      if (preferYtMusic) {
-        try {
-          final Map ytm = await YtMusicService()
-              .getSongData(videoId: videoId, data: item)
-              .timeout(const Duration(seconds: 16));
-          if (_isPlayableYoutubeMap(ytm)) playable = ytm;
-        } catch (error, stack) {
-          Logger.root.warning('YtMusic song metadata failed', error, stack);
-        }
-      }
-      if (playable == null) {
-        try {
-          playable = await YouTubeServices.instance
-              .formatVideoFromId(id: videoId, data: item)
-              .timeout(const Duration(seconds: 21));
-        } catch (error, stack) {
-          Logger.root.warning('YouTube stream lookup failed', error, stack);
-        }
-      }
-      if (_isPlayableYoutubeMap(playable)) {
-        await PlayerInvoke.init(
-          songsList: [playable!],
-          index: 0,
-          isOffline: false,
-        );
-        return;
-      }
-      if (mounted) _showYoutubePlaybackFailure(videoId);
+      // Both YtMusic and YouTube search results supply a video ID.
+      // Do not call getSongData/formatVideoFromId here: signed direct stream
+      // URLs were stalling at 00:00 even though metadata loaded correctly.
+      await YouTubeEmbedNavigation.openFromContext(context, item);
     } catch (error, stack) {
-      Logger.root.severe('YouTube playback preparation failed', error, stack);
-      if (mounted) _showYoutubePlaybackFailure(videoId);
+      Logger.root.warning('Could not open embedded YouTube player', error, stack);
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(content: Text('Could not open YouTube player')),
+        );
+      }
     } finally {
       _openingYoutubeSong = false;
     }
-  }
-
-  bool _isPlayableYoutubeMap(Map? song) {
-    if (song == null || song.isEmpty) return false;
-    final String? url = song['url']?.toString();
-    final Uri? uri = url == null ? null : Uri.tryParse(url);
-    return uri != null &&
-        (uri.scheme == 'https' || uri.scheme == 'http') &&
-        uri.host.isNotEmpty;
-  }
-
-  void _showYoutubePlaybackFailure(String videoId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'YouTube did not provide a playable audio stream. '
-          'You can open this video in the official YouTube app.',
-        ),
-        duration: const Duration(seconds: 7),
-        action: videoId.isEmpty
-            ? null
-            : SnackBarAction(
-                label: 'OPEN',
-                onPressed: () {
-                  launchUrl(
-                    Uri.https('www.youtube.com', '/watch', {'v': videoId}),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
-              ),
-      ),
-    );
   }
 
   // Search requests can fail or hang when YouTube changes its endpoints.
@@ -744,7 +691,7 @@ class _SearchPageState extends State<SearchPage> {
                                                                                 SongsListViewPage(
                                                                               onTap: (index, listItems) async {
                                                                                 await _playYoutubeItem(
-                                                                                  items[index] as Map,
+                                                                                  listItems[index] as Map,
                                                                                   preferYtMusic: true,
                                                                                 );
                                                                               },

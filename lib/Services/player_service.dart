@@ -23,6 +23,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:blackhole/Helpers/mediaitem_converter.dart';
 import 'package:blackhole/Screens/Player/audioplayer.dart';
 import 'package:blackhole/Services/youtube_services.dart';
+import 'package:blackhole/Services/youtube_embed_navigation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:get_it/get_it.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -48,16 +49,30 @@ class PlayerInvoke {
     bool? offline = isOffline;
     final List finalList = songsList.toList();
     if (shuffle) finalList.shuffle();
+
+    // Use YouTube's supported embedded player instead of trying to play a
+    // short-lived direct audio URL. Saavn and downloaded files are unchanged.
+    if (!fromMiniplayer && isOffline != true && finalList.isNotEmpty) {
+      final itemIndex = globalIndex < finalList.length ? globalIndex : 0;
+      final item = finalList[itemIndex];
+      if (item is Map && YouTubeEmbedNavigation.isYoutubeSong(item)) {
+        await audioHandler.pause();
+        await YouTubeEmbedNavigation.openGlobal(item);
+        return;
+      }
+    }
+
     if (offline == null) {
-      // Decide from the selected item, not the previous playing item.
-      // There might be no previously playing item on the first launch.
-      final firstItem = finalList.isEmpty ? null : finalList[globalIndex];
-      if (firstItem is Map) {
-        final url = firstItem['url']?.toString() ?? '';
-        offline = firstItem['genre'] != 'YouTube' &&
-            !url.startsWith('http');
-      } else {
-        offline = true;
+      final currentUrl =
+          audioHandler.mediaItem.value?.extras?['url']?.toString() ?? '';
+      offline = !currentUrl.startsWith('http');
+      // A fresh online list has no current song yet; don't treat it as
+      // downloaded local media just because the queue is empty.
+      if (currentUrl.isEmpty && finalList.isNotEmpty && finalList.first is Map) {
+        final candidate = finalList.first as Map;
+        final url = (candidate['url'] ?? '').toString();
+        offline = !(url.startsWith('http') ||
+            (candidate['genre'] ?? '').toString() == 'YouTube');
       }
     }
 
@@ -73,8 +88,6 @@ class PlayerInvoke {
                 ? setOffDesktopValues(finalList, globalIndex)
                 : setOffValues(finalList, globalIndex);
       } else {
-        // Propagate failed stream resolution to the caller instead of
-        // letting playback initialization silently finish.
         await setValues(
           finalList,
           globalIndex,
@@ -190,52 +203,72 @@ class PlayerInvoke {
     updateNplay(queue, index);
   }
 
-  static bool _isUsableStream(Map item) {
-    final url = item['url']?.toString() ?? '';
-    final uri = Uri.tryParse(url);
-    if (uri == null ||
-        (uri.scheme != 'https' && uri.scheme != 'http') ||
-        uri.host.isEmpty) {
-      return false;
-    }
-    final expiry = int.tryParse(item['expire_at']?.toString() ?? '') ?? 0;
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    return expiry == 0 || expiry > now + 60;
-  }
-
-  static void _copyStream(Map target, Map source) {
-    if (!_isUsableStream(source)) return;
-    target['url'] = source['url'];
-    if (source['duration'] != null) {
-      target['duration'] = source['duration'];
-    }
-    if (source['expire_at'] != null) {
-      target['expire_at'] = source['expire_at'];
-    }
-  }
-
   static Future<void> refreshYtLink(Map playItem) async {
-    if (_isUsableStream(playItem)) return;
-    final id = playItem['id']?.toString() ?? '';
-    if (id.isEmpty) return;
+    // final bool cacheSong =
+    // Hive.box('settings').get('cacheSong', defaultValue: true) as bool;
+    final int expiredAt = int.parse((playItem['expire_at'] ?? '0').toString());
+    if ((DateTime.now().millisecondsSinceEpoch ~/ 1000) + 350 > expiredAt) {
+      Logger.root.info(
+        'before service | youtube link expired for ${playItem["title"]}',
+      );
+      if (Hive.box('ytlinkcache').containsKey(playItem['id'])) {
+        final cache = await Hive.box('ytlinkcache').get(playItem['id']);
+        if (cache is List) {
+          int minExpiredAt = 0;
+          for (final e in cache) {
+            final int cachedExpiredAt = int.parse(e['expireAt'].toString());
+            if (minExpiredAt == 0 || cachedExpiredAt < minExpiredAt) {
+              minExpiredAt = cachedExpiredAt;
+            }
+          }
 
-    // Resolve the URL before adding the selected track to the player queue.
-    // YtMusic metadata and YouTube stream extraction are both fallible.
-    for (final useYtm in <bool>[true, false]) {
-      try {
-        final data = await YouTubeServices.instance
-            .refreshLink(id, useYTM: useYtm)
-            .timeout(const Duration(seconds: 16));
-        if (data != null && _isUsableStream(data)) {
-          _copyStream(playItem, data);
-          return;
+          if ((DateTime.now().millisecondsSinceEpoch ~/ 1000) + 350 >
+              minExpiredAt) {
+            // cache expired
+            Logger.root
+                .info('youtube link expired in cache for ${playItem["title"]}');
+            final newData = await YouTubeServices.instance
+                .refreshLink(playItem['id'].toString());
+            Logger.root.info(
+              'before service | received new link for ${playItem["title"]}',
+            );
+            if (newData != null) {
+              playItem['url'] = newData['url'];
+              playItem['duration'] = newData['duration'];
+              playItem['expire_at'] = newData['expire_at'];
+            }
+          } else {
+            // giving cache link
+            Logger.root
+                .info('youtube link found in cache for ${playItem["title"]}');
+            playItem['url'] = cache.last['url'];
+            playItem['expire_at'] = cache.last['expireAt'];
+          }
+        } else {
+          final newData = await YouTubeServices.instance
+              .refreshLink(playItem['id'].toString());
+          Logger.root.info(
+            'before service | received new link for ${playItem["title"]}',
+          );
+          if (newData != null) {
+            playItem['url'] = newData['url'];
+            playItem['duration'] = newData['duration'];
+            playItem['expire_at'] = newData['expire_at'];
+          }
         }
-      } catch (error, stack) {
-        Logger.root.warning('YouTube stream lookup failed ($useYtm)',
-            error, stack);
+      } else {
+        final newData = await YouTubeServices.instance
+            .refreshLink(playItem['id'].toString());
+        Logger.root.info(
+          'before service | received new link for ${playItem["title"]}',
+        );
+        if (newData != null) {
+          playItem['url'] = newData['url'];
+          playItem['duration'] = newData['duration'];
+          playItem['expire_at'] = newData['expire_at'];
+        }
       }
     }
-    Logger.root.warning('No usable YouTube stream for video $id');
   }
 
   static Future<void> setValues(
@@ -244,26 +277,15 @@ class PlayerInvoke {
     bool recommend = true,
     // String? playlistBox,
   }) async {
-    if (response.isEmpty || index < 0 || index >= response.length) {
-      throw StateError('Cannot play an empty or invalid song queue');
-    }
     final List<MediaItem> queue = [];
     final Map playItem = response[index] as Map;
+    final Map? nextItem =
+        index == response.length - 1 ? null : response[index + 1] as Map;
     if (playItem['genre'] == 'YouTube') {
-      final work = <Future<void>>[refreshYtLink(playItem)];
-      final nextIndex = index + 1;
-      if (nextIndex < response.length) {
-        final next = response[nextIndex] as Map;
-        if (next['genre'] == 'YouTube') {
-          // Resolving both URLs concurrently is faster than sequential calls
-          // and avoids silently omitting a queued track with an expired URL.
-          work.add(refreshYtLink(next));
-        }
-      }
-      await Future.wait(work);
-      if (!_isUsableStream(playItem)) {
-        throw StateError('YouTube did not provide a playable audio URL');
-      }
+      await refreshYtLink(playItem);
+    }
+    if (nextItem != null && nextItem['genre'] == 'YouTube') {
+      await refreshYtLink(nextItem);
     }
 
     queue.addAll(

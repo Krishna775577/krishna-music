@@ -27,6 +27,7 @@ import 'package:blackhole/CustomWidgets/playlist_popupmenu.dart';
 import 'package:blackhole/CustomWidgets/song_tile_trailing_menu.dart';
 import 'package:blackhole/Services/player_service.dart';
 import 'package:blackhole/Services/youtube_services.dart';
+import 'package:blackhole/Services/youtube_embed_navigation.dart';
 import 'package:blackhole/Services/yt_music.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -183,48 +184,19 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
                   ),
                 ],
                 onPlayTap: () async {
-                  setState(() {
-                    done = false;
-                  });
-
-                  final Map? response =
-                      await YouTubeServices.instance.formatVideoFromId(
-                    id: searchedList.first['id'].toString(),
-                    data: searchedList.first,
-                  );
-                  final List<Map> playList = List.from(searchedList);
-                  playList[0] = response!;
-                  setState(() {
-                    done = true;
-                  });
-                  PlayerInvoke.init(
-                    songsList: playList,
-                    index: 0,
-                    isOffline: false,
-                    recommend: false,
-                  );
+                  if (searchedList.isNotEmpty) {
+                    await YouTubeEmbedNavigation.openFromContext(
+                      context, searchedList.first as Map,
+                    );
+                  }
                 },
                 onShuffleTap: () async {
-                  setState(() {
-                    done = false;
-                  });
-                  final List<Map> playList = List.from(searchedList);
-                  playList.shuffle();
-                  final Map? response =
-                      await YouTubeServices.instance.formatVideoFromId(
-                    id: playList.first['id'].toString(),
-                    data: playList.first,
-                  );
-                  playList[0] = response!;
-                  setState(() {
-                    done = true;
-                  });
-                  PlayerInvoke.init(
-                    songsList: playList,
-                    index: 0,
-                    isOffline: false,
-                    recommend: false,
-                  );
+                  if (searchedList.isNotEmpty) {
+                    final tracks = List.from(searchedList)..shuffle();
+                    await YouTubeEmbedNavigation.openFromContext(
+                      context, tracks.first as Map,
+                    );
+                  }
                 },
                 sliverList: SliverList(
                   delegate: SliverChildListDelegate(
@@ -277,22 +249,8 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                               onTap: () async {
-                                setState(() {
-                                  done = false;
-                                });
-                                final Map? response = await YouTubeServices
-                                    .instance
-                                    .formatVideoFromId(
-                                  id: entry['id'].toString(),
-                                  data: entry,
-                                );
-                                setState(() {
-                                  done = true;
-                                });
-                                PlayerInvoke.init(
-                                  songsList: [response],
-                                  index: 0,
-                                  isOffline: false,
+                                await YouTubeEmbedNavigation.openFromContext(
+                                  context, entry,
                                 );
                                 // for (var i = 0;
                                 //     i < searchedList.length;

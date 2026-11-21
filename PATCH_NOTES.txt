@@ -1,0 +1,35 @@
+Krishna Music — YouTube / YouTube Music Embedded Playback Patch
+===============================================================
+
+This ZIP is an OVERLAY PATCH for your existing GitHub repository. It is NOT a
+complete project source archive. It intentionally leaves the working Saavn,
+UI, Android and original license files unchanged.
+
+Changes:
+* Adds an official YouTube iFrame player screen and shared navigator.
+* Routes YouTube/YtMusic songs selected in search and playlists/artists to the
+  in-app YouTube player without direct audio-URL extraction.
+* Routes other YouTube song items using PlayerInvoke through same player.
+* Keeps Saavn / downloaded files on the existing just_audio player.
+* Retains prior YouTube search retry, fallback and error UI from the earlier
+  search patch, and fixes the View All selected index.
+* Pins youtube_player_iframe 5.1.5 (Flutter 3.19 / Dart 3.3 compatible).
+
+IMPORTANT LIMITATIONS:
+* YouTube playback is VIDEO in foreground with YouTube controls, NOT
+  Spotify-like background audio-only streaming, not YouTube downloads.
+* Some copyrighted videos disallow embeds; Open in YouTube is provided.
+* It does not change/repair YouTube Music's private search API or guarantee
+  every YouTube video is playable.
+* Existing unrelated GitHub project edits could differ from the uploaded
+  original; these files were patched from the source and earlier chat patches.
+* No Flutter SDK/Android device test available here. Build + runtime unverified.
+
+Installation in your current workflow:
+1. Delete existing krishna-music-source-ready.zip from GitHub root & commit.
+2. Upload the new ZIP with the SAME name to your krishna-music repository root.
+3. Actions > Import ZIP and Build Android APK > Run workflow (NEW run).
+4. If green, download artifact APK; test YouTube, YtMusic and Saavn.
+5. Report compile error lines if the workflow is red.
+
+Retain original BlackHole copyright and license notices.
