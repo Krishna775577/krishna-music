@@ -442,7 +442,7 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
         } else {
           if (mediaItem.genre == 'YouTube') {
             final int expiredAt =
-                int.parse((mediaItem.extras!['expire_at'] ?? '0').toString());
+                int.tryParse((mediaItem.extras!['expire_at'] ?? '0').toString()) ?? 0;
             if ((DateTime.now().millisecondsSinceEpoch ~/ 1000) + 350 >
                 expiredAt) {
               // Logger.root.info(
@@ -454,7 +454,7 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
                   int minExpiredAt = 0;
                   for (final e in cachedData) {
                     final int cachedExpiredAt =
-                        int.parse(e['expireAt'].toString());
+                        int.tryParse(e['expireAt'].toString()) ?? 0;
                     if (minExpiredAt == 0 || cachedExpiredAt < minExpiredAt) {
                       minExpiredAt = cachedExpiredAt;
                     }
@@ -1013,7 +1013,7 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
   }
 
   void _playbackError(err) {
-    Logger.root.severe('Error from audioservice: ${err.code}', err);
+    Logger.root.severe('Error from audioservice: $err', err);
     if (err is PlatformException &&
         err.code == 'abort' &&
         err.message == 'Connection aborted') return;
@@ -1021,7 +1021,7 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
   }
 
   void _onError(err, stacktrace, {bool stopService = false}) {
-    Logger.root.severe('Error from audioservice: ${err.code}', err);
+    Logger.root.severe('Error from audioservice: $err', err);
     if (stopService) stop();
   }
 

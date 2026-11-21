@@ -82,7 +82,9 @@ class SaavnAPI {
       // return myClient.get(url, headers: headers);
       final proxyHeaders = headers;
       proxyHeaders['X-FORWARDED-FOR'] = proxyIP;
-      return get(url, headers: proxyHeaders).onError((error, stackTrace) {
+      return get(url, headers: proxyHeaders)
+          .timeout(const Duration(seconds: 18))
+          .onError((error, stackTrace) {
         return Response(
           {
             'status': 'failure',
@@ -92,7 +94,9 @@ class SaavnAPI {
         );
       });
     }
-    return get(url, headers: headers).onError((error, stackTrace) {
+    return get(url, headers: headers)
+        .timeout(const Duration(seconds: 18))
+        .onError((error, stackTrace) {
       return Response(
         {
           'status': 'failure',
