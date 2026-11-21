@@ -8,7 +8,9 @@ if (localPropertiesFile.exists()) {
 
 def flutterRoot = localProperties.getProperty('flutter.sdk')
 if (flutterRoot == null) {
-    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+    throw new GradleException(
+        "Flutter SDK not found. Define location with flutter.sdk in local.properties."
+    )
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
@@ -31,7 +33,15 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+def hasReleaseSigning =
+        keystoreProperties['storeFile'] != null &&
+        keystoreProperties['storePassword'] != null &&
+        keystoreProperties['keyAlias'] != null &&
+        keystoreProperties['keyPassword'] != null
+
 android {
+    // AndroidX WebKit 1.11.0 from the YouTube embedded-player dependency
+    // requires compileSdk 34. This does not change targetSdk or minSdk.
     compileSdkVersion 34
     ndkVersion "21.4.7075529"
 
@@ -47,24 +57,28 @@ android {
         versionName flutterVersionName
     }
 
-    // remove signingConfigs when running debug version
     signingConfigs {
         release {
-            if (keystoreProperties['storeFile']) storeFile file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            v1SigningEnabled true
-            v2SigningEnabled true
+            if (hasReleaseSigning) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                v1SigningEnabled true
+                v2SigningEnabled true
+            }
         }
     }
 
     buildTypes {
-        // replace release with "debug" when running on debug version
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // replace with "debug" when running on debug version
-            signingConfig signingConfigs.release
+            // Debug signing is used only as a fallback for local testing.
+            // Never distribute a debug-signed APK as a production release.
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled false
             shrinkResources false
         }
     }
@@ -73,6 +87,7 @@ android {
         checkReleaseBuilds false
         abortOnError false
     }
+
     buildFeatures {
         viewBinding true
     }
