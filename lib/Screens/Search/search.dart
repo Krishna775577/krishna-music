@@ -162,14 +162,16 @@ class _SearchPageState extends State<SearchPage> {
 
   bool _openingYoutubeSong = false;
 
-  Future<void> _playYoutubeItem(Map item, {required bool preferYtMusic}) async {
+  Future<void> _playYoutubeItem(Map item, {required bool preferYtMusic, List? queue, int? index}) async {
     if (_openingYoutubeSong || !mounted) return;
     _openingYoutubeSong = true;
     try {
       // Both YtMusic and YouTube search results supply a video ID.
       // Do not call getSongData/formatVideoFromId here: signed direct stream
       // URLs were stalling at 00:00 even though metadata loaded correctly.
-      await YouTubeEmbedNavigation.openFromContext(context, item);
+      await YouTubeEmbedNavigation.openFromContext(
+        context, item, queue: queue, initialIndex: index,
+      );
     } catch (error, stack) {
       Logger.root.warning('Could not open embedded YouTube player', error, stack);
       if (mounted) {
@@ -693,6 +695,8 @@ class _SearchPageState extends State<SearchPage> {
                                                                                 await _playYoutubeItem(
                                                                                   listItems[index] as Map,
                                                                                   preferYtMusic: true,
+                                                                                  queue: listItems,
+                                                                                  index: index,
                                                                                 );
                                                                               },
                                                                               title: title,
@@ -952,6 +956,8 @@ class _SearchPageState extends State<SearchPage> {
                                                               await _playYoutubeItem(
                                                                 items[index] as Map,
                                                                 preferYtMusic: itemType == 'song',
+                                                                queue: items,
+                                                                index: index,
                                                               );
                                                             }
                                                           }

@@ -1,6 +1,6 @@
 /*
- * Shared navigation for YouTube and YouTube Music videos.
- * Keeps Saavn/local songs on the existing just_audio pipeline.
+ * Route YouTube and YouTube Music video entries to the supported in-app
+ * embedded YouTube player; Saavn/local music remains on just_audio.
  */
 import 'package:blackhole/Screens/YouTube/official_youtube_player.dart';
 import 'package:flutter/material.dart';
@@ -11,11 +11,11 @@ class YouTubeEmbedNavigation {
   static final RegExp _id = RegExp(r'^[A-Za-z0-9_-]{11}$');
 
   static String? videoIdFrom(Map<dynamic, dynamic> item) {
-    for (final field in ['videoId', 'video_id', 'id']) {
+    for (final field in <String>['videoId', 'video_id', 'id']) {
       final String candidate = (item[field] ?? '').toString().trim();
       if (_id.hasMatch(candidate)) return candidate;
     }
-    for (final field in ['perma_url', 'permaUrl', 'url']) {
+    for (final field in <String>['perma_url', 'permaUrl', 'url']) {
       final String raw = (item[field] ?? '').toString().trim();
       final Uri? uri = Uri.tryParse(raw);
       if (uri == null) continue;
@@ -31,28 +31,77 @@ class YouTubeEmbedNavigation {
     return null;
   }
 
-  static Future<void> openFromContext(
-    BuildContext context, Map<dynamic, dynamic> item) async {
+  static KrishnaYoutubeTrack? _trackFrom(Map item) {
     final id = videoIdFrom(item);
-    if (id == null) {
+    if (id == null) return null;
+    return KrishnaYoutubeTrack(
+      videoId: id,
+      title: (item['title'] ?? 'YouTube video').toString(),
+      artist: (item['artist'] ?? item['subtitle'] ?? '').toString(),
+    );
+  }
+
+  static Future<void> openFromContext(
+    BuildContext context,
+    Map<dynamic, dynamic> item, {
+    List? queue,
+    int? initialIndex,
+  }) async {
+    final selected = _trackFrom(item);
+    if (selected == null) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(content: Text('YouTube video ID not available')),
       );
       return;
     }
-    final String title = (item['title'] ?? 'YouTube Video').toString();
-    final String artist = (item['artist'] ?? item['subtitle'] ?? '').toString();
-    await Navigator.of(context).push<void>(MaterialPageRoute<void>(
-      builder: (_) => OfficialYouTubePlayerPage(
-        videoId: id, title: title, artist: artist,
+    final List<KrishnaYoutubeTrack> tracks = <KrishnaYoutubeTrack>[];
+    int selectedIndex = 0;
+    if (queue != null) {
+      for (int i = 0; i < queue.length; i++) {
+        final entry = queue[i];
+        if (entry is! Map) continue;
+        final candidate = _trackFrom(entry);
+        if (candidate == null) continue;
+        if (initialIndex == i) selectedIndex = tracks.length;
+        tracks.add(candidate);
+      }
+    }
+    if (tracks.isEmpty ||
+        !tracks.any((element) => element.videoId == selected.videoId)) {
+      tracks.insert(0, selected);
+      selectedIndex = 0;
+    } else if (initialIndex == null ||
+        tracks[selectedIndex].videoId != selected.videoId) {
+      selectedIndex = tracks.indexWhere(
+        (element) => element.videoId == selected.videoId,
+      );
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => OfficialYouTubePlayerPage(
+          videoId: selected.videoId,
+          title: selected.title,
+          artist: selected.artist,
+          queue: tracks,
+          initialIndex: selectedIndex,
+        ),
       ),
-    ));
+    );
   }
 
-  static Future<void> openGlobal(Map<dynamic, dynamic> item) async {
+  static Future<void> openGlobal(
+    Map<dynamic, dynamic> item, {
+    List? queue,
+    int? initialIndex,
+  }) async {
     final context = navigatorKey.currentContext;
     if (context == null) return;
-    await openFromContext(context, item);
+    await openFromContext(
+      context,
+      item,
+      queue: queue,
+      initialIndex: initialIndex,
+    );
   }
 
   static bool isYoutubeSong(Map<dynamic, dynamic> item) {

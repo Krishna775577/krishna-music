@@ -57,7 +57,9 @@ class PlayerInvoke {
       final item = finalList[itemIndex];
       if (item is Map && YouTubeEmbedNavigation.isYoutubeSong(item)) {
         await audioHandler.pause();
-        await YouTubeEmbedNavigation.openGlobal(item);
+        await YouTubeEmbedNavigation.openGlobal(
+          item, queue: finalList, initialIndex: itemIndex,
+        );
         return;
       }
     }

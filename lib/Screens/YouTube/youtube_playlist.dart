@@ -68,71 +68,48 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
 
   bool isSharePopupShown = false;
 
+  String? loadError;
+
   @override
   void initState() {
-    if (!status) {
-      status = true;
-      if (widget.type == 'playlist') {
-        YtMusicService().getPlaylistDetails(widget.playlistId).then((value) {
-          setState(() {
-            try {
-              searchedList = value['songs'] as List<Map>? ?? [];
-              playlistName = value['name'] as String? ?? '';
-              playlistSubtitle = value['subtitle'] as String? ?? '';
-              playlistSecondarySubtitle = value['description'] as String?;
-              playlistImage = (value['images'] as List?)?.last as String? ?? '';
-              fetched = true;
-            } catch (e) {
-              Logger.root.severe('Error in fetching playlist details', e);
-              fetched = true;
-            }
-          });
-        });
-      } else if (widget.type == 'album') {
-        YtMusicService().getAlbumDetails(widget.playlistId).then((value) {
-          setState(() {
-            try {
-              searchedList = value['songs'] as List<Map>? ?? [];
-              playlistName = value['name'] as String? ?? '';
-              playlistSubtitle = value['subtitle'] as String? ?? '';
-              playlistSecondarySubtitle = value['description'] as String?;
-              playlistImage = (value['images'] as List?)?.last as String? ?? '';
-              fetched = true;
-            } catch (e) {
-              Logger.root.severe('Error in fetching playlist details', e);
-              fetched = true;
-            }
-          });
-        });
-      } else if (widget.type == 'artist') {
-        YtMusicService().getArtistDetails(widget.playlistId).then((value) {
-          setState(() {
-            try {
-              searchedList = value['songs'] as List<Map>? ?? [];
-              playlistName = value['name'] as String? ?? '';
-              playlistSubtitle = value['subtitle'] as String? ?? '';
-              playlistSecondarySubtitle = value['description'] as String?;
-              playlistImage = (value['images'] as List?)?.last as String? ?? '';
-              fetched = true;
-            } catch (e) {
-              Logger.root.severe('Error in fetching playlist details', e);
-              fetched = true;
-            }
-          });
-        });
-      }
-      // YouTubeServices.instance.getPlaylistSongs(widget.playlistId).then((value) {
-      //   if (value.isNotEmpty) {
-      //     setState(() {
-      //       searchedList = value;
-      //       fetched = true;
-      //     });
-      //   } else {
-      //     status = false;
-      //   }
-      // });
-    }
     super.initState();
+    _fetchDetails();
+  }
+
+  Future<void> _fetchDetails() async {
+    if (!mounted) return;
+    setState(() {
+      fetched = false;
+      loadError = null;
+    });
+    try {
+      final service = YtMusicService();
+      final Map value = widget.type == 'album'
+          ? await service.getAlbumDetails(widget.playlistId)
+              .timeout(const Duration(seconds: 20))
+          : widget.type == 'artist'
+              ? await service.getArtistDetails(widget.playlistId)
+                  .timeout(const Duration(seconds: 20))
+              : await service.getPlaylistDetails(widget.playlistId)
+                  .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+      setState(() {
+        searchedList = (value['songs'] as List?)?.whereType<Map>().toList() ?? <Map>[];
+        playlistName = (value['name'] ?? '').toString();
+        playlistSubtitle = (value['subtitle'] ?? '').toString();
+        playlistSecondarySubtitle = value['description']?.toString();
+        final images = value['images'];
+        playlistImage = images is List && images.isNotEmpty
+            ? images.last.toString() : '';
+        fetched = true;
+      });
+    } catch (error, stack) {
+      Logger.root.warning('YouTube playlist details failed', error, stack);
+      if (mounted) setState(() {
+        fetched = true;
+        loadError = 'Could not load this playlist. Please retry.';
+      });
+    }
   }
 
   @override
@@ -152,6 +129,20 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
             if (!fetched)
               const Center(
                 child: CircularProgressIndicator(),
+              )
+            else if (loadError != null)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(loadError!, textAlign: TextAlign.center),
+                    TextButton.icon(
+                      onPressed: _fetchDetails,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
               )
             else
               BouncyPlaylistHeaderScrollView(
@@ -187,6 +178,7 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
                   if (searchedList.isNotEmpty) {
                     await YouTubeEmbedNavigation.openFromContext(
                       context, searchedList.first as Map,
+                      queue: searchedList, initialIndex: 0,
                     );
                   }
                 },
@@ -195,6 +187,7 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
                     final tracks = List.from(searchedList)..shuffle();
                     await YouTubeEmbedNavigation.openFromContext(
                       context, tracks.first as Map,
+                      queue: tracks, initialIndex: 0,
                     );
                   }
                 },
@@ -251,6 +244,8 @@ class _YouTubePlaylistState extends State<YouTubePlaylist> {
                               onTap: () async {
                                 await YouTubeEmbedNavigation.openFromContext(
                                   context, entry,
+                                  queue: searchedList,
+                                  initialIndex: searchedList.indexOf(entry),
                                 );
                                 // for (var i = 0;
                                 //     i < searchedList.length;

@@ -52,27 +52,39 @@ class _YouTubeArtistState extends State<YouTubeArtist> {
   String artistImage = '';
   List<Map> searchedList = [];
 
+  String? loadError;
+
   @override
   void initState() {
-    if (!status) {
-      status = true;
-      YtMusicService().getArtistDetails(widget.artistId).then((value) {
-        setState(() {
-          try {
-            data = value;
-            searchedList = data['songs'] as List<Map>;
-            artistName = value['name'] as String? ?? '';
-            artistSubtitle = value['subtitle'] as String? ?? '';
-            artistImage = value['images']?.last as String? ?? '';
-            fetched = true;
-          } catch (e) {
-            Logger.root.severe('Error in fetching artist details', e);
-            fetched = true;
-          }
-        });
+    super.initState();
+    _fetchArtist();
+  }
+
+  Future<void> _fetchArtist() async {
+    if (!mounted) return;
+    setState(() { fetched = false; loadError = null; });
+    try {
+      final Map response = await YtMusicService()
+          .getArtistDetails(widget.artistId)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+      setState(() {
+        data = Map<String, dynamic>.from(response);
+        searchedList = (response['songs'] as List?)?.whereType<Map>().toList() ?? <Map>[];
+        artistName = (response['name'] ?? '').toString();
+        artistSubtitle = (response['subtitle'] ?? '').toString();
+        final images = response['images'];
+        artistImage = images is List && images.isNotEmpty
+            ? images.last.toString() : '';
+        fetched = true;
+      });
+    } catch (error, stack) {
+      Logger.root.warning('YouTube artist details failed', error, stack);
+      if (mounted) setState(() {
+        fetched = true;
+        loadError = 'Could not load this artist. Please retry.';
       });
     }
-    super.initState();
   }
 
   @override
@@ -92,6 +104,20 @@ class _YouTubeArtistState extends State<YouTubeArtist> {
             if (!fetched)
               const Center(
                 child: CircularProgressIndicator(),
+              )
+            else if (loadError != null)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(loadError!, textAlign: TextAlign.center),
+                    TextButton.icon(
+                      onPressed: _fetchArtist,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
               )
             else
               BouncyImageSliverScrollView(
@@ -150,6 +176,8 @@ class _YouTubeArtistState extends State<YouTubeArtist> {
                               onTap: () async {
                                 await YouTubeEmbedNavigation.openFromContext(
                                   context, entry,
+                                  queue: searchedList,
+                                  initialIndex: searchedList.indexOf(entry),
                                 );
                                 // for (var i = 0;
                                 //     i < searchedList.length;
