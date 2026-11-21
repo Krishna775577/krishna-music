@@ -13,7 +13,7 @@ Changes:
 * Keeps Saavn / downloaded files on the existing just_audio player.
 * Retains prior YouTube search retry, fallback and error UI from the earlier
   search patch, and fixes the View All selected index.
-* Pins youtube_player_iframe 5.1.5 (Flutter 3.19 / Dart 3.3 compatible).
+* Pins youtube_player_iframe 4.0.4 for the existing Flutter 3.19.6 / Dart 3.3.4 workflow. The previous 5.1.5 dependency failed because a transitive webview_flutter version requires Dart >=3.4.
 
 IMPORTANT LIMITATIONS:
 * YouTube playback is VIDEO in foreground with YouTube controls, NOT
@@ -33,3 +33,5 @@ Installation in your current workflow:
 5. Report compile error lines if the workflow is red.
 
 Retain original BlackHole copyright and license notices.
+
+Dependency fix: 2026-11-21 - replaced 5.1.5 with 4.0.4.
