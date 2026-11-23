@@ -1,0 +1,49 @@
+name: Build Jotify Online Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "lib/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/jotify-online-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Jotify source
+        uses: actions/checkout@v4
+      - name: Configure Java 11 for legacy Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.19.6"
+          channel: stable
+          cache: true
+      - name: Install Android SDK 34
+        run: |
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" || true
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+      - name: Build Android debug APK
+        run: flutter build apk --debug --no-pub
+      - name: Upload Android APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jotify-Online-Android-Debug-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
