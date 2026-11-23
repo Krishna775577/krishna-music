@@ -72,6 +72,10 @@ android {
 
     buildTypes {
         debug {
+            // Keep the test APK beside the installed Jotify app instead of
+            // replacing it with a mismatched GitHub Actions debug signature.
+            applicationIdSuffix ".preview"
+            versionNameSuffix "-preview"
             signingConfig signingConfigs.debug
         }
         release {
