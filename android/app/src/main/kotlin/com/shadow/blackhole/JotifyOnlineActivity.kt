@@ -95,7 +95,7 @@ class JotifyOnlineActivity : Activity() {
         browser.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(
                 view: View,
-                callback: CustomViewCallback
+                callback: WebChromeClient.CustomViewCallback
             ) {
                 if (fullscreenView != null) {
                     callback.onCustomViewHidden()
