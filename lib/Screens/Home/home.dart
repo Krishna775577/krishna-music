@@ -38,6 +38,7 @@ import 'package:blackhole/Screens/Player/audioplayer.dart';
 import 'package:blackhole/Screens/Settings/new_settings_page.dart';
 import 'package:blackhole/Screens/Top Charts/top.dart';
 import 'package:blackhole/Screens/YouTube/youtube_home.dart';
+import 'package:blackhole/Screens/YouTube/jotify_yt_discovery.dart';
 import 'package:blackhole/Services/ext_storage_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -653,7 +654,7 @@ class _HomePageState extends State<HomePage> {
                         pageController: _pageController,
                       );
                     case 'YouTube':
-                      return const YouTube();
+                      return const JotifyYTDiscovery();
                     case 'Library':
                       return const LibraryPage();
                     default:
