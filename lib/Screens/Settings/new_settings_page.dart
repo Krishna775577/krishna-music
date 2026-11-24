@@ -3,6 +3,7 @@ import 'package:blackhole/Screens/Settings/about.dart';
 import 'package:blackhole/Screens/Settings/jotify_privacy.dart';
 import 'package:blackhole/Screens/Library/spotify_library.dart';
 import 'package:blackhole/Screens/Library/listening_insights.dart';
+import 'package:blackhole/Screens/Library/jotify_smart_mixes.dart';
 import 'package:blackhole/Screens/Settings/app_ui.dart';
 import 'package:blackhole/Screens/Settings/backup_and_restore.dart';
 import 'package:blackhole/Screens/Settings/download.dart';
@@ -68,6 +69,10 @@ class _NewSettingsPageState extends State<NewSettingsPage> {
         'Playlist folders, pins and sorting',
         Icons.folder_copy_outlined, () => const JotifyLibraryPlus(),
         'library folders pin playlist organize sorting'),
+      _SettingsEntry('Made for you',
+        'On Repeat, Rediscover and your Daily Mix',
+        Icons.auto_awesome_rounded, () => const JotifySmartMixes(),
+        'daily mix repeat rediscover personalize made for you'),
       _SettingsEntry('Listening insights',
         'Your top tracks, artists and recently played mix',
         Icons.insights_outlined, () => const JotifyListeningInsights(),
