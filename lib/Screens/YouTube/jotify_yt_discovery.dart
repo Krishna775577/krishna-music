@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:blackhole/Services/jotify_native_youtube_overlay.dart';
 import 'package:blackhole/Screens/YouTube/official_youtube_player.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 class JotifyYTDiscovery extends StatefulWidget {
@@ -15,119 +14,130 @@ class JotifyYTDiscovery extends StatefulWidget {
 
 class _JotifyYTDiscoveryState extends State<JotifyYTDiscovery>
     with AutomaticKeepAliveClientMixin<JotifyYTDiscovery> {
-  static const store = FlutterSecureStorage();
-  static const keyName = 'jotify_v11_yt_api_key';
-  final query = TextEditingController(), secret = TextEditingController();
-  String? apiKey, error;
-  bool busy = false, showKey = false;
+  static const String _configUrl =
+    'https://raw.githubusercontent.com/Krishna775577/krishna-music/main/jotify-config.json';
+  static const String _buildUrl =
+    String.fromEnvironment('JOTIFY_YT_API_BASE', defaultValue: '');
+  final query = TextEditingController();
+  String? error;
+  bool busy = false;
   String filter = 'All';
+  Uri? _base;
   List<Map<String, String>> songs = [], lists = [];
   final Map<String, List<Map<String, String>>> cache = {};
-
   @override bool get wantKeepAlive => true;
-  @override void initState() { super.initState(); _restore(); }
-  Future<void> _restore() async {
-    try {
-      final key = await store.read(key: keyName);
-      if (mounted) setState(() => apiKey = key);
-    } catch (_) { if (mounted) setState(() => error = 'Secure storage unavailable'); }
+
+  Future<Uri> _api() async {
+    if (_base != null) return _base!;
+    String address = _buildUrl.trim();
+    if (address.isEmpty) {
+      http.Response config;
+      try {
+        config = await http.get(Uri.parse(_configUrl),
+          headers: {'Accept':'application/json'}).timeout(const Duration(seconds:8));
+      } catch (_) {
+        throw StateError('YT service configuration unavailable. Try again.');
+      }
+      if (config.statusCode != 200) throw StateError('YT service configuration unavailable.');
+      try {
+        final body = jsonDecode(config.body);
+        if(body is Map) address = (body['youtubeApiBase'] ?? '').toString().trim();
+      } catch (_) { throw StateError('YT service configuration is invalid.'); }
+    }
+    final uri = Uri.tryParse(address);
+    if(uri == null || uri.scheme != 'https' || uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment ||
+        (uri.path.isNotEmpty && uri.path != '/')) {
+      throw StateError('YT shared search is awaiting owner activation.');
+    }
+    _base = uri;
+    return uri;
   }
-  Future<void> _save() async {
-    final key = secret.text.trim();
-    if(key.length < 25) {setState(() => error = 'Enter a valid API key'); return;}
+  Future<Uri> _route(String path, Map<String,String> params) async =>
+      (await _api()).replace(path:path,queryParameters:params);
+
+  String _errorFor(http.Response response) {
+    if(response.statusCode == 429) return 'YouTube quota or rate limit reached. Try later.';
+    if(response.statusCode == 503) return 'YT shared service not ready. Owner setup may be pending.';
     try {
-      await store.write(key: keyName, value: key);
-      if(!mounted)return;
-      secret.clear();
-      setState(() {apiKey = key; showKey = false; error = null;});
-    } catch (_) {if(mounted)setState(() => error = 'Failed to save API key');}
+      final body = jsonDecode(response.body);
+      if(body is Map && body['error'] is String) return (body['error'] as String).substring(
+        0,(body['error'] as String).length.clamp(0,160).toInt());
+    } catch (_) {}
+    return 'YouTube search unavailable (' + response.statusCode.toString() + ').';
   }
+
   Future<List<Map<String, String>>> _fetch(String q, String kind) async {
     final cacheId = kind + ':' + q.toLowerCase();
-    if(cache.containsKey(cacheId))return cache[cacheId]!;
-    final params = <String,String>{'part':'snippet','q':q,
-      'type':kind == 'playlist' ? 'playlist' : 'video',
-      'maxResults':'12','safeSearch':'moderate','key':apiKey!};
-    if(kind == 'song')params['videoEmbeddable']='true';
-    // Do not log request URI or Google raw errors (may include credentials).
-    final res = await http.get(Uri.https('www.googleapis.com','/youtube/v3/search',params))
-      .timeout(const Duration(seconds:15));
-    if(res.statusCode != 200)throw StateError(
-      res.statusCode == 403 || res.statusCode == 400
-      ? 'Google denied this key or quota. Check YouTube Data API v3.'
-      : 'YouTube search temporarily unavailable.');
-    final parsed = jsonDecode(res.body);
+    if(cache.containsKey(cacheId)) return cache[cacheId]!;
+    final uri = await _route('/api/yt/search', {'kind':kind,'q':q});
+    final res = await http.get(uri).timeout(const Duration(seconds:15));
+    if(res.statusCode != 200) throw StateError(_errorFor(res));
+    final body = jsonDecode(res.body);
     final out = <Map<String,String>>[];
-    if(parsed is Map && parsed['items'] is List){
-      for(final item in parsed['items'] as List){
-        if(item is! Map || item['id'] is! Map || item['snippet'] is! Map)continue;
-        final idMap=item['id'] as Map, detail=item['snippet'] as Map;
-        final id=(idMap[kind == 'song'?'videoId':'playlistId']??'').toString();
-        if(!(kind == 'song' ? RegExp(r'^[A-Za-z0-9_-]{11}$')
-             : RegExp(r'^[A-Za-z0-9_-]{8,120}$')).hasMatch(id))continue;
-        final pics=detail['thumbnails'];
-        String image='';
-        if(pics is Map){
-          final p=pics['medium']??pics['default'];
-          if(p is Map)image=(p['url']??'').toString();
-        }
-        out.add({'id':id,'kind':kind,'title':(detail['title']??'YouTube').toString(),
-          'artist':(detail['channelTitle']??'YouTube').toString(),'image':image});
-      }
+    if(body is! Map || body['status'] != 'ok' || body['items'] is! List) {
+      throw StateError('YT returned an invalid response.');
+    }
+    for(final item in body['items'] as List){
+      if(item is! Map)continue;
+      final id=(item['id']??'').toString();
+      if(!(kind=='song'?RegExp(r'^[A-Za-z0-9_-]{11}$'):RegExp(r'^[A-Za-z0-9_-]{8,120}$')).hasMatch(id))continue;
+      out.add({'id':id,'kind':kind,
+        'title':(item['title']??'YouTube').toString(),
+        'artist':(item['channel']??'YouTube').toString(),
+        'image':(item['thumbnail']??'').toString()});
     }
     if(cache.length>80)cache.clear();
     cache[cacheId]=out;
     return out;
   }
+
   Future<void> _search([String? value]) async {
     final q=(value??query.text).trim();
     if(q.length<2){setState(()=>error='Enter at least 2 characters');return;}
-    if((apiKey??'').isEmpty){setState((){
-      showKey=true;error='Save an API key to search directly from Android.';});return;}
     if(busy)return;
     query.text=q;
-    setState(() {busy=true;error=null;});
+    setState((){busy=true;error=null;});
     try{
       final r=await Future.wait([_fetch(q,'song'),_fetch(q,'playlist')]);
-      if(mounted)setState(() {songs=r[0];lists=r[1];});
-    }catch(e){if(mounted)setState(()=>error=e is StateError?e.message.toString():'Network error');}
-    finally{if(mounted)setState(()=>busy=false);}
+      if(mounted)setState((){songs=r[0];lists=r[1];});
+    }catch(e){
+      if(mounted)setState(()=>error=e is StateError?e.message.toString():'Network error. Try again.');
+    }finally{if(mounted)setState(()=>busy=false);}
   }
   KrishnaYoutubeTrack _track(Map<String,String> t)=>KrishnaYoutubeTrack(
     videoId:t['id']??'',title:t['title']??'YouTube',artist:t['artist']??'');
-  Future<void> _open(Map<String,String> item,List<Map<String,String>> group)async{
+  Future<void> _open(Map<String,String> item,List<Map<String,String>> group) async {
     if(item['kind']=='song'){
       final queue=group.map(_track).toList();
-      final i=queue.indexWhere((e)=>e.videoId==item['id']);
-      JotifyNativeYTOverlay.show(context,queue,i);
+      final index=queue.indexWhere((e)=>e.videoId==item['id']);
+      JotifyNativeYTOverlay.show(context,queue,index);
       return;
     }
     setState(()=>busy=true);
     try{
-      final resp=await http.get(Uri.https('www.googleapis.com','/youtube/v3/playlistItems',{
-        'part':'snippet','playlistId':item['id']!,'maxResults':'25','key':apiKey!,
-      })).timeout(const Duration(seconds:15));
-      if(resp.statusCode != 200)throw StateError('Playlist not public or unavailable');
-      final data=jsonDecode(resp.body);
+      final uri=await _route('/api/yt/playlist',{'list':item['id']!});
+      final res=await http.get(uri).timeout(const Duration(seconds:15));
+      if(res.statusCode!=200)throw StateError(_errorFor(res));
+      final data=jsonDecode(res.body);
       final queue=<KrishnaYoutubeTrack>[];
-      if(data is Map && data['items'] is List){
-        for(final v in data['items'] as List){
-          if(v is! Map || v['snippet'] is! Map)continue;
-          final sn=v['snippet'] as Map;
-          if(sn['resourceId'] is! Map)continue;
-          final id=((sn['resourceId'] as Map)['videoId']??'').toString();
+      if(data is Map && data['status']=='ok' && data['items'] is List){
+        for(final row in data['items'] as List){
+          if(row is! Map)continue;
+          final id=(row['id']??'').toString();
           if(!RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id))continue;
           queue.add(KrishnaYoutubeTrack(videoId:id,
-            title:(sn['title']??'YouTube video').toString(),
-            artist:(sn['videoOwnerChannelTitle']??item['artist']??'').toString()));
+            title:(row['title']??'YouTube video').toString(),
+            artist:(row['channel']??'YouTube').toString()));
         }
       }
-      if(queue.isEmpty)throw StateError('No playable videos in this public playlist');
+      if(queue.isEmpty)throw StateError('No playable public videos found.');
       if(mounted)JotifyNativeYTOverlay.show(context,queue,0);
-    }catch(e){if(mounted)setState(()=>error=e is StateError?e.message.toString():'Playlist unavailable');}
-    finally{if(mounted)setState(()=>busy=false);}
+    }catch(e){
+      if(mounted)setState(()=>error=e is StateError?e.message.toString():'Playlist unavailable');
+    }finally{if(mounted)setState(()=>busy=false);}
   }
-  @override void dispose(){query.dispose();secret.dispose();super.dispose();}
+  @override void dispose(){query.dispose();super.dispose();}
   Widget _card(Map<String,String> t,List<Map<String,String>> group)=>Card(
     color:const Color(0xFF1B2921),
     child:ListTile(
@@ -153,22 +163,13 @@ class _JotifyYTDiscoveryState extends State<JotifyYTDiscovery>
           const SizedBox(width:10),
           const Expanded(child:Text('YT · Jotify',style:TextStyle(color:Colors.white,
             fontSize:25,fontWeight:FontWeight.w800))),
-          IconButton(icon:const Icon(Icons.settings_outlined,color:Colors.white),
-            tooltip:'YouTube API key',onPressed:()=>setState(()=>showKey=!showKey)),
+          const Icon(Icons.verified_user_outlined,color:Color(0xFF30E398)),
         ]),
-        if(apiKey==null||showKey) Card(
-          color:const Color(0xFF21342A),
-          child:Padding(padding:const EdgeInsets.all(14),child:Column(
-            crossAxisAlignment:CrossAxisAlignment.start,children:[
-              const Text('YouTube Search — No Render',style:TextStyle(
-                color:Colors.white,fontWeight:FontWeight.bold)),
-              const Text('Use a fresh YouTube Data API v3 key. It stays only in this phone.',
-                style:TextStyle(color:Colors.white70,fontSize:12)),
-              TextField(controller:secret,obscureText:true,
-                style:const TextStyle(color:Colors.white),
-                decoration:const InputDecoration(hintText:'Paste private API key')),
-              ElevatedButton(onPressed:_save,child:const Text('Save key privately')),
-          ]))),
+        const Padding(
+          padding:EdgeInsets.only(top:8),
+          child:Text('Shared YouTube search · No API key needed · No Render',
+            style:TextStyle(color:Colors.white70,fontSize:12)),
+        ),
         const SizedBox(height:12),
         TextField(controller:query,style:const TextStyle(color:Colors.white),
           onSubmitted:_search,
