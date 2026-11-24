@@ -35,6 +35,7 @@ import 'package:blackhole/Screens/Library/library.dart';
 import 'package:blackhole/Screens/LocalMusic/downed_songs.dart';
 import 'package:blackhole/Screens/LocalMusic/downed_songs_desktop.dart';
 import 'package:blackhole/Screens/Player/audioplayer.dart';
+import 'package:blackhole/Screens/Search/search.dart';
 import 'package:blackhole/Screens/Settings/new_settings_page.dart';
 import 'package:blackhole/Screens/Top Charts/top.dart';
 import 'package:blackhole/Screens/YouTube/youtube_home.dart';
@@ -66,7 +67,7 @@ class _HomePageState extends State<HomePage> {
       Hive.box('settings').get('autoBackup', defaultValue: false) as bool;
   List sectionsToShow = Hive.box('settings').get(
     'sectionsToShow',
-    defaultValue: ['Home', 'Top Charts', 'YouTube', 'Library'],
+    defaultValue: ['Home', 'Search', 'Library', 'YouTube'],
   ) as List;
   DateTime? backButtonPressTime;
   final bool useDense = Hive.box('settings').get(
@@ -77,7 +78,7 @@ class _HomePageState extends State<HomePage> {
   void callback() {
     sectionsToShow = Hive.box('settings').get(
       'sectionsToShow',
-      defaultValue: ['Home', 'Top Charts', 'YouTube', 'Library'],
+      defaultValue: ['Home', 'Search', 'Library', 'YouTube'],
     ) as List;
     onItemTapped(0);
     setState(() {});
@@ -531,10 +532,9 @@ class _HomePageState extends State<HomePage> {
                       height: 60,
                       child: CustomBottomNavBar(
                         currentIndex: indexValue,
-                        backgroundColor:
-                            Theme.of(context).brightness == Brightness.dark
-                                ? Colors.black.withOpacity(0.9)
-                                : Colors.white.withOpacity(0.9),
+                        backgroundColor: const Color(0xFF101010),
+                        selectedItemColor: const Color(0xFF1ED760),
+                        unselectedItemColor: Colors.white70,
                         onTap: onItemTapped,
                         items: _navBarItems(context),
                       ),
@@ -589,6 +589,11 @@ class _HomePageState extends State<HomePage> {
                           return NavigationRailDestination(
                             icon: const Icon(Icons.home_rounded),
                             label: Text(AppLocalizations.of(context)!.home),
+                          );
+                        case 'Search':
+                          return const NavigationRailDestination(
+                            icon: Icon(Icons.search_rounded),
+                            label: Text('Search'),
                           );
                         case 'Top Charts':
                           return NavigationRailDestination(
@@ -649,6 +654,8 @@ class _HomePageState extends State<HomePage> {
                   switch (e) {
                     case 'Home':
                       return const HomeScreen();
+                    case 'Search':
+                      return const SearchPage(query: '');
                     case 'Top Charts':
                       return TopCharts(
                         pageController: _pageController,
@@ -677,6 +684,12 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.home_rounded),
             title: Text(AppLocalizations.of(context)!.home),
             selectedColor: Theme.of(context).colorScheme.secondary,
+          );
+        case 'Search':
+          return CustomBottomNavBarItem(
+            icon: const Icon(Icons.search_rounded),
+            title: const Text('Search'),
+            selectedColor: const Color(0xFF1ED760),
           );
         case 'Top Charts':
           return CustomBottomNavBarItem(
