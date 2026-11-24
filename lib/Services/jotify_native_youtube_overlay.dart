@@ -1,30 +1,37 @@
-// Jotify V11 native YouTube watch/visible mini-player.
-// Uses the official iframe plugin. No Render, extraction or hidden playback.
-import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+// Jotify YouTube overlay: show the working first-party hosted YouTube
+// experience in an Android WebView. The website uses an official visible
+// YouTube embed and keeps its API key on the server; Saavn stays untouched.
 import 'package:blackhole/Screens/YouTube/official_youtube_player.dart';
+import 'package:blackhole/Screens/YouTube/jotify_website_youtube.dart';
+import 'package:flutter/material.dart';
 
 class JotifyNativeYTOverlay {
   static OverlayEntry? _entry;
-  static final ValueNotifier<_WatchRequest?> _current = ValueNotifier(null);
-  static final RegExp _videoId = RegExp(r'^[a-zA-Z0-9_-]{11}$');
+  static final ValueNotifier<_WatchRequest?> _current =
+      ValueNotifier<_WatchRequest?>(null);
+  static final RegExp _videoId = RegExp(r'^[A-Za-z0-9_-]{11}$');
 
-  static void show(BuildContext context, List<KrishnaYoutubeTrack> tracks, int index) {
-    final queue = tracks.where((t) => _videoId.hasMatch(t.videoId)).toList();
+  static void show(
+    BuildContext context,
+    List<KrishnaYoutubeTrack> tracks,
+    int index,
+  ) {
+    final queue =
+        tracks.where((track) => _videoId.hasMatch(track.videoId)).toList();
     if (queue.isEmpty) return;
-    final i = index.clamp(0, queue.length-1).toInt();
-    _current.value = _WatchRequest(queue, i);
-    if (_entry == null) {
-      _entry = OverlayEntry(builder: (_) => const _WatchOverlay());
-      Overlay.of(context, rootOverlay: true).insert(_entry!);
-    }
+    final safeIndex = index.clamp(0, queue.length - 1).toInt();
+    _current.value = _WatchRequest(queue, safeIndex);
+    if (_entry != null) return;
+    _entry = OverlayEntry(builder: (_) => const _WatchOverlay());
+    Overlay.of(context, rootOverlay: true).insert(_entry!);
   }
 
   static void close() {
     _current.value = null;
-    _entry?.remove();
-    _entry?.dispose();
+    final existing = _entry;
     _entry = null;
+    existing?.remove();
+    existing?.dispose();
   }
 }
 
@@ -42,9 +49,8 @@ class _WatchOverlay extends StatefulWidget {
 }
 
 class _WatchOverlayState extends State<_WatchOverlay> {
-  late YoutubePlayerController controller;
   late _WatchRequest request;
-  bool expanded = true;
+  static const _green = Color(0xFF1ED760);
 
   KrishnaYoutubeTrack get track => request.tracks[request.index];
 
@@ -52,116 +58,110 @@ class _WatchOverlayState extends State<_WatchOverlay> {
   void initState() {
     super.initState();
     request = JotifyNativeYTOverlay._current.value!;
-    controller = YoutubePlayerController.fromVideoId(
-      videoId: track.videoId,
-      autoPlay: false,
-      params: const YoutubePlayerParams(
-        showControls: true, showFullscreenButton: true, mute: false,
-        loop: false, playsInline: true,
-      ),
-    );
     JotifyNativeYTOverlay._current.addListener(_onChange);
   }
 
   void _onChange() {
     final next = JotifyNativeYTOverlay._current.value;
-    if(next == null || !mounted) return;
-    if (next.tracks[next.index].videoId != track.videoId) {
-      // Triggered by a user selecting a song or an Up Next video.
-      controller.loadVideoById(videoId: next.tracks[next.index].videoId);
-    }
-    setState(() {request = next; expanded = true;});
+    if (next == null || !mounted) return;
+    setState(() => request = next);
   }
 
-  void _change(int i) {
-    if(i < 0 || i >= request.tracks.length) return;
-    JotifyNativeYTOverlay._current.value = _WatchRequest(request.tracks, i);
+  void _change(int index) {
+    if (index < 0 || index >= request.tracks.length) return;
+    JotifyNativeYTOverlay._current.value =
+        _WatchRequest(request.tracks, index);
   }
 
   @override
   void dispose() {
     JotifyNativeYTOverlay._current.removeListener(_onChange);
-    controller.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final width = (size.width - 24).clamp(200.0, 360.0).toDouble();
-    const green = Color(0xFF30E398);
-    return YoutubePlayerScaffold(
-      controller: controller,
-      aspectRatio: 16/9,
-      builder: (context, player) => Stack(children: [
-        if(expanded)
-          Positioned.fill(child: ColoredBox(color: Colors.black.withOpacity(.94))),
-        Positioned(
-          left: expanded ? 0 : null,
-          right: expanded ? 0 : 12,
-          top: expanded ? 0 : null,
-          bottom: expanded ? 0 : 92,
-          width: expanded ? null : width,
-          child: Material(
-            color: const Color(0xFF141B17),
-            elevation: 18,
-            clipBehavior: Clip.antiAlias,
-            borderRadius: BorderRadius.circular(expanded ? 0 : 13),
-            child: Column(
-              mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
-              children: [
-                Container(
-                  height: 44, color: const Color(0xFF1C2B21),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Row(children: [
-                    const Icon(Icons.smart_display_rounded,color:Colors.redAccent),
-                    const SizedBox(width:8),
-                    Expanded(child: Text(track.title,
-                      maxLines:1,overflow:TextOverflow.ellipsis,
-                      style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))),
-                    IconButton(
-                      tooltip: expanded ? 'Minimize to Home' : 'Open video',
-                      icon:Icon(expanded ? Icons.picture_in_picture_alt_rounded : Icons.open_in_full_rounded),
-                      color:green,
-                      onPressed:()=>setState(()=>expanded=!expanded),
+    return Material(
+      color: const Color(0xFF090E0B),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              height: 56,
+              color: const Color(0xFF141E17),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Close YouTube player',
+                    onPressed: JotifyNativeYTOverlay.close,
+                    color: Colors.white,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
+                  const Icon(Icons.smart_display_rounded,
+                      color: Colors.redAccent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                    IconButton(
-                      tooltip:'Stop video',
-                      icon:const Icon(Icons.close_rounded),color:Colors.white70,
-                      onPressed:JotifyNativeYTOverlay.close,
-                    ),
-                  ]),
-                ),
-                AspectRatio(aspectRatio:16/9,child:player),
-                if(expanded)
-                  Expanded(child: ListView(
-                    padding:const EdgeInsets.all(18),
-                    children:[
-                      Text(track.title,style:const TextStyle(color:Colors.white,fontSize:23,fontWeight:FontWeight.bold)),
-                      const SizedBox(height:6),
-                      Text(track.artist,style:const TextStyle(color:Colors.white70)),
-                      const SizedBox(height:20),
-                      const Text('Up next',style:TextStyle(color:green,fontSize:17,fontWeight:FontWeight.bold)),
-                      for(var i=0;i<request.tracks.length;i++)
-                        ListTile(
-                          selected:request.index==i,
-                          title:Text(request.tracks[i].title,
-                            maxLines:2,overflow:TextOverflow.ellipsis,
-                            style:const TextStyle(color:Colors.white)),
-                          subtitle:Text(request.tracks[i].artist,style:const TextStyle(color:Colors.white54)),
-                          leading:Icon(i==request.index?Icons.equalizer_rounded:Icons.play_arrow,color:green),
-                          onTap:()=>_change(i),
-                        ),
-                      const SizedBox(height:16),
-                      const Text('Official YouTube player. Screen-lock audio/background-only YouTube playback is unavailable.',
-                        style:TextStyle(color:Colors.white54,fontSize:12)),
-                    ],
-                  )),
-              ],
+                  ),
+                  IconButton(
+                    tooltip: 'Close video',
+                    onPressed: JotifyNativeYTOverlay.close,
+                    color: Colors.white70,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Expanded(
+              child: JotifyWebsiteYouTube(
+                key: ValueKey<String>(track.videoId),
+                videoId: track.videoId,
+              ),
+            ),
+            if (request.tracks.length > 1)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                color: const Color(0xFF141E17),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Previous video',
+                      onPressed: request.index > 0
+                          ? () => _change(request.index - 1)
+                          : null,
+                      color: _green,
+                      icon: const Icon(Icons.skip_previous_rounded),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Video ${request.index + 1} of ${request.tracks.length}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Next video',
+                      onPressed: request.index < request.tracks.length - 1
+                          ? () => _change(request.index + 1)
+                          : null,
+                      color: _green,
+                      icon: const Icon(Icons.skip_next_rounded),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-      ]),
+      ),
     );
   }
 }
