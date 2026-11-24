@@ -1,5 +1,6 @@
 import 'package:blackhole/CustomWidgets/drawer.dart';
 import 'package:blackhole/Screens/Settings/about.dart';
+import 'package:blackhole/Screens/Settings/jotify_privacy.dart';
 import 'package:blackhole/Screens/Library/spotify_library.dart';
 import 'package:blackhole/Screens/Library/listening_insights.dart';
 import 'package:blackhole/Screens/Settings/app_ui.dart';
@@ -59,6 +60,10 @@ class _NewSettingsPageState extends State<NewSettingsPage> {
           'Language, equalizer, lyrics, cache and other controls',
           Icons.tune_rounded, () => const OthersPage(),
           'app preferences language equalizer lyrics proxy cache folders search'),
+      _SettingsEntry('Privacy & listening history',
+        'Private Session, clear recent activity and reset statistics',
+        Icons.privacy_tip_outlined, () => const JotifyPrivacyPage(),
+        'private session privacy history security clear listening data'),
       _SettingsEntry('Organize Your Library',
         'Playlist folders, pins and sorting',
         Icons.folder_copy_outlined, () => const JotifyLibraryPlus(),
