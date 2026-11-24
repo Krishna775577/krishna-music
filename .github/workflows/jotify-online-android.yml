@@ -40,6 +40,23 @@ jobs:
         run: flutter pub get
       - name: Build Android debug APK
         run: flutter build apk --debug --no-pub
+      - name: Audit Android target and high-risk permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-debug.apk"
+          AAPT="${ANDROID_HOME}/build-tools/34.0.0/aapt"
+          test -f "$APK"
+          "$AAPT" dump badging "$APK" | grep -F "targetSdkVersion:'34'"
+          if "$AAPT" dump permissions "$APK" | grep -q "android.permission.MANAGE_EXTERNAL_STORAGE"; then
+            echo "::error::Broad all-files storage permission must not be present"
+            exit 1
+          fi
+          if "$AAPT" dump permissions "$APK" | grep -q "android.permission.REQUEST_INSTALL_PACKAGES"; then
+            echo "::error::Installing other APKs is not permitted"
+            exit 1
+          fi
+          echo "Verified: target 34; no broad all-files or package-install permission."
       - name: Upload Android APK artifact
         if: success()
         uses: actions/upload-artifact@v4
