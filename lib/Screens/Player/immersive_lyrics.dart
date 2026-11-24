@@ -7,6 +7,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:blackhole/Helpers/lyrics.dart';
 import 'package:blackhole/Screens/Player/audioplayer.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 class ImmersiveLyricsPage extends StatelessWidget {
   final AudioPlayerHandler audioHandler;
@@ -330,7 +331,7 @@ class _LyricsForSongState extends State<_LyricsForSong> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
-      final target = (active * _rowHeight).clamp(0.0, maxScroll);
+      final target = (active * _rowHeight).clamp(0.0, maxScroll).toDouble();
       _scrollController.animateTo(
         target,
         duration: const Duration(milliseconds: 360),
