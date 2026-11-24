@@ -1,4 +1,4 @@
-name: Build Jotify Online Android APK
+name: Build Jotify V11 Native Android Preview APK
 
 on:
   push:
@@ -43,7 +43,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jotify-Online-Android-Debug-APK
+          name: Jotify-V11-Native-Android-Debug-APK
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
