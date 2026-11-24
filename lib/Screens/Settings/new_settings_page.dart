@@ -1,5 +1,7 @@
 import 'package:blackhole/CustomWidgets/drawer.dart';
 import 'package:blackhole/Screens/Settings/about.dart';
+import 'package:blackhole/Screens/Library/spotify_library.dart';
+import 'package:blackhole/Screens/Library/listening_insights.dart';
 import 'package:blackhole/Screens/Settings/app_ui.dart';
 import 'package:blackhole/Screens/Settings/backup_and_restore.dart';
 import 'package:blackhole/Screens/Settings/download.dart';
@@ -57,6 +59,14 @@ class _NewSettingsPageState extends State<NewSettingsPage> {
           'Language, equalizer, lyrics, cache and other controls',
           Icons.tune_rounded, () => const OthersPage(),
           'app preferences language equalizer lyrics proxy cache folders search'),
+      _SettingsEntry('Organize Your Library',
+        'Playlist folders, pins and sorting',
+        Icons.folder_copy_outlined, () => const JotifyLibraryPlus(),
+        'library folders pin playlist organize sorting'),
+      _SettingsEntry('Listening insights',
+        'Your top tracks, artists and recently played mix',
+        Icons.insights_outlined, () => const JotifyListeningInsights(),
+        'wrapped stats most played artists listening insights'),
       _SettingsEntry('Backup and restore',
           'Save, export and recover your Jotify library',
           Icons.cloud_upload_outlined, () => const BackupAndRestorePage(),
