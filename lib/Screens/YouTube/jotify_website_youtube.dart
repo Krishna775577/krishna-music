@@ -37,7 +37,7 @@ class _JotifyWebsiteYouTubeState extends State<JotifyWebsiteYouTube>
     final args = <String, String>{};
     if (widget.videoId != null &&
         RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(widget.videoId!)) {
-      args['id'] = widget.videoId!;
+      args['v'] = widget.videoId!;
     } else if (widget.playlistId != null &&
         RegExp(r'^[A-Za-z0-9_-]{8,120}$').hasMatch(widget.playlistId!)) {
       args['list'] = widget.playlistId!;
