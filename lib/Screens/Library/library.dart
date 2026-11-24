@@ -23,6 +23,7 @@ import 'package:blackhole/CustomWidgets/drawer.dart';
 import 'package:blackhole/Screens/Library/liked.dart';
 import 'package:blackhole/Screens/Library/spotify_library.dart';
 import 'package:blackhole/Screens/Library/listening_insights.dart';
+import 'package:blackhole/Screens/Library/jotify_smart_mixes.dart';
 import 'package:blackhole/Screens/LocalMusic/downed_songs.dart';
 import 'package:blackhole/Screens/LocalMusic/downed_songs_desktop.dart';
 import 'package:flutter/material.dart';
@@ -140,6 +141,13 @@ class _LibraryPageState extends State<LibraryPage> {
           onTap: () {
             Navigator.pushNamed(context, '/playlists');
           },
+        ),
+        LibraryTile(
+          title: 'Made for you',
+          subtitle: 'On Repeat, Rediscover and Daily Mix',
+          icon: Icons.auto_awesome_rounded,
+          onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const JotifySmartMixes())),
         ),
         LibraryTile(
           title: 'Your listening insights',
