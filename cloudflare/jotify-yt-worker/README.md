@@ -9,9 +9,10 @@ an APK or committed to GitHub.
 
 1. Create or use a Cloudflare account. In Google Cloud, enable **YouTube Data
    API v3** and create a **new API key** restricted to only that API. Do not
-   reuse a key that was pasted into a chat or checked into source. Server
-   requests from Cloudflare may not have stable outbound IPs, so API
-   restrictions are especially important.
+   reuse a key that was pasted into a chat or checked into source. For this server-side key, select **Application restrictions: None**
+   (Cloudflare egress IPs are not fixed) and **API restrictions: Restrict key ->
+   YouTube Data API v3**. The key stays private in the Cloudflare secret; do not
+   restrict it to browser referrers or Android package signatures.
 2. In GitHub `Krishna775577/krishna-music` -> **Settings -> Secrets and
    variables -> Actions**, add repository **secrets**:
    `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. The Cloudflare token
