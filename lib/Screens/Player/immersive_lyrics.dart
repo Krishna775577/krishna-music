@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:audio_service/audio_service.dart';
 import 'package:blackhole/Helpers/lyrics.dart';
 import 'package:blackhole/Screens/Player/audioplayer.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -439,7 +440,7 @@ class _LyricsForSongState extends State<_LyricsForSong> {
                                             letterSpacing: -.45,
                                             fontWeight: selected
                                                 ? FontWeight.w800
-                                                : FontWeight.w650,
+                                                : FontWeight.w600,
                                           ),
                                           child: Text(line.text,
                                             maxLines: 3,
