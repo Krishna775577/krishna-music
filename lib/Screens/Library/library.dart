@@ -39,7 +39,9 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.sizeOf(context).width;
     final bool rotated = MediaQuery.sizeOf(context).height < screenWidth;
-    return ListView(
+    return Container(
+      color: const Color(0xFF121212),
+      child: ListView(
       physics: const BouncingScrollPhysics(),
       children: [
         AppBar(
@@ -49,11 +51,23 @@ class _LibraryPageState extends State<LibraryPage> {
               color: Theme.of(context).iconTheme.color,
             ),
           ),
-          centerTitle: true,
-          backgroundColor: Colors.transparent,
+          centerTitle: false,
+          backgroundColor: const Color(0xFF121212),
           elevation: 0,
           automaticallyImplyLeading: false,
           leading: rotated ? null : homeDrawer(context: context),
+          actions: [
+            IconButton(
+              tooltip: 'Create playlist',
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              onPressed: () => Navigator.pushNamed(context, '/playlists'),
+            ),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 14, 20, 12),
+          child: Text('Your music, your way',
+            style: TextStyle(color: Color(0xFFB3B3B3), fontSize: 14)),
         ),
         LibraryTile(
           title: AppLocalizations.of(context)!.nowPlaying,
@@ -123,6 +137,7 @@ class _LibraryPageState extends State<LibraryPage> {
           },
         ),
       ],
+    ),
     );
   }
 }
@@ -144,24 +159,22 @@ class LibraryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(
-        title,
-        style: TextStyle(
-          color: Theme.of(context).iconTheme.color,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      title: Text(title, style: const TextStyle(
+        color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+      subtitle: subtitle == null ? null : Text(subtitle!,
+        style: const TextStyle(color: Color(0xFFB3B3B3))),
+      leading: Container(
+        height: 52, width: 52,
+        decoration: BoxDecoration(
+          color: icon == Icons.favorite_rounded
+              ? const Color(0xFF5038A0) : const Color(0xFF282828),
+          borderRadius: BorderRadius.circular(7),
         ),
+        child: Icon(icon, color: Colors.white, size: 27),
       ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle!,
-              style: TextStyle(
-                color: Theme.of(context).iconTheme.color,
-              ),
-            )
-          : null,
-      leading: Icon(
-        icon,
-        color: Theme.of(context).iconTheme.color,
-      ),
+      trailing: const Icon(Icons.chevron_right_rounded,
+        color: Color(0xFFB3B3B3)),
       onTap: onTap,
     );
   }
