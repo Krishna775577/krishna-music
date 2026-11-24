@@ -4,7 +4,7 @@ description: Jotify - music player (based on the open-source BlackHole project).
 # Prevent accidental publishing to pub.dev.
 publish_to: "none"
 
-version: 1.15.10+41
+version: 11.0.0+75
 
 environment:
   sdk: ">=3.1.0 <4.0.0"
