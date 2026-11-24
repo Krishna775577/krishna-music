@@ -22,6 +22,7 @@ import 'dart:math';
 import 'package:blackhole/CustomWidgets/drawer.dart';
 import 'package:blackhole/CustomWidgets/textinput_dialog.dart';
 import 'package:blackhole/Screens/Home/saavn.dart';
+import 'package:blackhole/Screens/Home/jotify_home_highlights.dart';
 import 'package:blackhole/Screens/Search/search.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -177,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 ),
+                const SliverToBoxAdapter(child: JotifyHomeHighlights()),
                 SliverAppBar(
                   automaticallyImplyLeading: false,
                   pinned: true,
