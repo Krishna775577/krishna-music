@@ -11,7 +11,7 @@ environment:
   flutter: ">=3.3.0"
 
 dependencies:
-  http: ^1.2.2
+  http: ^1.1.0
   flutter_secure_storage: ^9.2.4
   app_links: ^3.5.0
   audio_service: ^0.18.12
