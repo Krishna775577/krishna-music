@@ -3,6 +3,7 @@
  * embedded YouTube player; Saavn/local music remains on just_audio.
  */
 import 'package:blackhole/Screens/YouTube/official_youtube_player.dart';
+import 'package:blackhole/Services/jotify_native_youtube_overlay.dart';
 import 'package:flutter/material.dart';
 
 class YouTubeEmbedNavigation {
@@ -76,17 +77,9 @@ class YouTubeEmbedNavigation {
         (element) => element.videoId == selected.videoId,
       );
     }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => OfficialYouTubePlayerPage(
-          videoId: selected.videoId,
-          title: selected.title,
-          artist: selected.artist,
-          queue: tracks,
-          initialIndex: selectedIndex,
-        ),
-      ),
-    );
+    // V11: Insert persistent, VISIBLE official YouTube player in the root
+    // overlay. Switching to Home does not destroy the WebView/player state.
+    JotifyNativeYTOverlay.show(context, tracks, selectedIndex);
   }
 
   static Future<void> openGlobal(
