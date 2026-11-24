@@ -18,77 +18,50 @@
  */
 
 import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // ignore: avoid_classes_with_only_static_members
 class ExtStorageProvider {
-  // asking for permission
   static Future<bool> requestPermission(Permission permission) async {
-    if (await permission.isGranted) {
-      return true;
-    } else {
-      final result = await permission.request();
-      if (result == PermissionStatus.granted) {
-        return true;
-      } else {
-        return false;
-      }
-    }
+    if (await permission.isGranted) return true;
+    return await permission.request() == PermissionStatus.granted;
   }
 
-  // getting external storage path
+  // Scoped-storage compatible default location. On Android 10+,
+  // downloads are stored in the app-owned Music directory, without
+  // requesting access to unrelated files on the user's phone.
+  // Existing user files are never deleted or migrated here.
   static Future<String?> getExtStorage({
     required String dirName,
     required bool writeAccess,
   }) async {
-    Directory? directory;
-
-    try {
-      // checking platform
-      if (Platform.isAndroid) {
-        if (await requestPermission(Permission.storage)) {
-          directory = await getExternalStorageDirectory();
-
-          // getting main path
-          final String newPath = directory!.path
-              .replaceFirst('Android/data/com.shadow.blackhole/files', dirName);
-
-          directory = Directory(newPath);
-
-          // checking if directory exist or not
-          if (!await directory.exists()) {
-            // if directory not exists then asking for permission to create folder
-            await requestPermission(Permission.manageExternalStorage);
-            //creating folder
-
-            await directory.create(recursive: true);
-          }
-          if (await directory.exists()) {
-            try {
-              if (writeAccess) {
-                await requestPermission(Permission.manageExternalStorage);
-              }
-              // if directory exists then returning the complete path
-              return newPath;
-            } catch (e) {
-              rethrow;
-            }
-          }
-        } else {
-          return throw 'something went wrong';
-        }
-      } else if (Platform.isIOS || Platform.isMacOS) {
-        directory = await getApplicationDocumentsDirectory();
-        final finalDirName = dirName.replaceAll('BlackHole/', '');
-        return '${directory.path}/$finalDirName';
+    if (Platform.isAndroid) {
+      final directory = await getExternalStorageDirectory();
+      if (directory == null) return null;
+      final sdk = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
+      final String fullPath;
+      if (sdk >= 29) {
+        fullPath = '${directory.path}/$dirName';
       } else {
-        directory = await getDownloadsDirectory();
-        return '${directory!.path}/$dirName';
+        if (!await requestPermission(Permission.storage)) {
+          return null;
+        }
+        final root = directory.path.split('/Android/').first;
+        fullPath = '$root/$dirName';
       }
-    } catch (e) {
-      rethrow;
+      final target = Directory(fullPath);
+      if (!await target.exists()) {
+        await target.create(recursive: true);
+      }
+      return target.path;
     }
-    return directory.path;
+    if (Platform.isIOS || Platform.isMacOS) {
+      final directory = await getApplicationDocumentsDirectory();
+      return '${directory.path}/${dirName.replaceAll('BlackHole/', '')}';
+    }
+    final directory = await getDownloadsDirectory();
+    return directory == null ? null : '${directory.path}/$dirName';
   }
 }
