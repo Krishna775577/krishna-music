@@ -7,9 +7,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- For reading local audio on Android 13 and above. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        android:minSdkVersion="30" />
+    <!-- App-owned downloads do not need MANAGE_EXTERNAL_STORAGE. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -18,8 +16,7 @@
     <application
         android:icon="@mipmap/ic_launcher"
         android:label="Jotify"
-        android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
+        android:usesCleartextTraffic="true">
         
         <meta-data
             android:name="com.google.android.gms.car.application"
