@@ -641,6 +641,12 @@ class AudioPlayerHandlerImpl extends BaseAudioHandler
   }
 
   Future<void> addRecentlyPlayed(MediaItem mediaitem) async {
+    // Private Session prevents future listening-history and play-count
+    // writes without deleting anything already saved.
+    if (Hive.box('settings').get('jotifyPrivateSession',
+            defaultValue: false) == true) {
+      return;
+    }
     Logger.root.info('adding ${mediaitem.id} to recently played');
     List recentList = await Hive.box('cache')
         .get('recentSongs', defaultValue: [])?.toList() as List;
