@@ -2,6 +2,7 @@
 // history. No remote tracking or proprietary Spotify services.
 import 'package:blackhole/Screens/Library/liked.dart';
 import 'package:blackhole/Screens/Library/listening_insights.dart';
+import 'package:blackhole/Screens/Library/jotify_smart_mixes.dart';
 import 'package:blackhole/Screens/Library/spotify_library.dart';
 import 'package:blackhole/Services/player_service.dart';
 import 'package:flutter/material.dart';
@@ -141,6 +142,16 @@ class JotifyHomeHighlights extends StatelessWidget {
                       onTap: () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) =>
                               const JotifyListeningInsights())),
+                    ),
+                    const SizedBox(width: 10),
+                    _shortcut(context,
+                      name: 'Made for you',
+                      subtitle: 'Your mixes',
+                      icon: Icons.auto_awesome_rounded,
+                      color: const Color(0xFF8B5F2B),
+                      onTap: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) =>
+                          const JotifySmartMixes())),
                     ),
                     const SizedBox(width: 10),
                     _shortcut(context,
