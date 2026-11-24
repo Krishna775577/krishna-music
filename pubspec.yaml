@@ -61,6 +61,8 @@ dependencies:
   # workmanager: ^0.5.1
   youtube_explode_dart: ^2.5.3
   youtube_player_iframe: 4.0.4
+  # Keep the same hosted YT experience inside Android/iOS Jotify.
+  webview_flutter: 4.7.0
 
 dev_dependencies:
   flutter_test:
