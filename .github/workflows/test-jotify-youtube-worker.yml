@@ -1,0 +1,25 @@
+name: Verify Jotify shared YouTube API
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/jotify-yt-worker/**"
+      - ".github/workflows/test-jotify-youtube-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate Worker syntax
+        run: node --check cloudflare/jotify-yt-worker/src/index.js
+      - name: Test search, playlist, caching and safe errors
+        working-directory: cloudflare/jotify-yt-worker
+        run: node --test test.mjs
