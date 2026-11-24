@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:blackhole/CustomWidgets/box_switch_tile.dart';
 import 'package:blackhole/CustomWidgets/gradient_containers.dart';
 import 'package:blackhole/CustomWidgets/snackbar.dart';
 import 'package:blackhole/Helpers/picker.dart';
 import 'package:blackhole/Services/ext_storage_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:hive/hive.dart';
 
@@ -17,7 +20,7 @@ class DownloadPage extends StatefulWidget {
 class _DownloadPageState extends State<DownloadPage> {
   final Box settingsBox = Hive.box('settings');
   String downloadPath = Hive.box('settings')
-      .get('downloadPath', defaultValue: '/storage/emulated/0/Music') as String;
+      .get('downloadPath', defaultValue: '') as String;
   String downloadQuality = Hive.box('settings')
       .get('downloadQuality', defaultValue: '320 kbps') as String;
   String ytDownloadQuality = Hive.box('settings')
@@ -145,7 +148,9 @@ class _DownloadPageState extends State<DownloadPage> {
                 )!
                     .downLocation,
               ),
-              subtitle: Text(downloadPath),
+              subtitle: Text(downloadPath.isEmpty
+                  ? 'App music folder (private to Jotify)'
+                  : downloadPath),
               trailing: TextButton(
                 style: TextButton.styleFrom(
                   foregroundColor:
@@ -158,7 +163,7 @@ class _DownloadPageState extends State<DownloadPage> {
                         dirName: 'Music',
                         writeAccess: true,
                       ) ??
-                      '/storage/emulated/0/Music';
+                      '';
                   Hive.box('settings').put('downloadPath', downloadPath);
                   setState(
                     () {},
@@ -172,6 +177,15 @@ class _DownloadPageState extends State<DownloadPage> {
                 ),
               ),
               onTap: () async {
+                if (Platform.isAndroid &&
+                    (await DeviceInfoPlugin().androidInfo).version.sdkInt >= 29) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text(
+                      'For privacy, Android 10+ downloads use Jotify\'s app-owned Music folder.',
+                    )),
+                  );
+                  return;
+                }
                 final String temp = await Picker.selectFolder(
                   context: context,
                   message: AppLocalizations.of(
