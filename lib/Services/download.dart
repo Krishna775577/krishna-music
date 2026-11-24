@@ -33,6 +33,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:logging/logging.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -81,21 +82,16 @@ class Download with ChangeNotifier {
   }) async {
     Logger.root.info('Preparing download for ${data['title']}');
     download = true;
-    if (Platform.isAndroid || Platform.isIOS) {
-      Logger.root.info('Requesting storage permission');
-      PermissionStatus status = await Permission.storage.status;
-      if (status.isDenied) {
-        Logger.root.info('Request denied');
-        await [
-          Permission.storage,
-          Permission.accessMediaLocation,
-          Permission.mediaLibrary,
-        ].request();
-      }
-      status = await Permission.storage.status;
-      if (status.isPermanentlyDenied) {
-        Logger.root.info('Request permanently denied');
-        await openAppSettings();
+    // Modern Android does not use the legacy broad storage permission for
+    // app-owned downloads. Older Android releases still use their normal
+    // runtime storage permission.
+    if (Platform.isAndroid) {
+      final sdk = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
+      if (sdk < 29) {
+        final status = await Permission.storage.request();
+        if (status.isPermanentlyDenied) {
+          await openAppSettings();
+        }
       }
     }
     final RegExp avoid = RegExp(r'[\.\\\*\:\"\?#/;\|]');
@@ -115,6 +111,27 @@ class Download with ChangeNotifier {
     String dlPath =
         Hive.box('settings').get('downloadPath', defaultValue: '') as String;
     Logger.root.info('Cached Download path: $dlPath');
+    // Older Jotify versions stored downloads in the shared Music folder.
+    // On Android 10+, use the app-owned Music folder instead of asking for
+    // all-files access. Existing songs are left untouched.
+    if (Platform.isAndroid) {
+      final sdk = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
+      if (sdk >= 29) {
+        final appDirectory = await getExternalStorageDirectory();
+        if (appDirectory != null &&
+            !dlPath.startsWith('${appDirectory.path}/')) {
+          final scopedPath = await ExtStorageProvider.getExtStorage(
+            dirName: 'Music',
+            writeAccess: true,
+          );
+          if (scopedPath != null) {
+            dlPath = scopedPath;
+            await Hive.box('settings').put('downloadPath', dlPath);
+          }
+        }
+      }
+    }
+
     if (filename.length > 200) {
       final String temp = filename.substring(0, 200);
       final List tempList = temp.split(', ');
@@ -337,33 +354,19 @@ class Download with ChangeNotifier {
           .create(recursive: true)
           .then((value) => filepath2 = value.path);
     } catch (e) {
-      Logger.root
-          .info('Error creating files, requesting additional permission');
-      if (Platform.isAndroid) {
-        PermissionStatus status = await Permission.manageExternalStorage.status;
-        if (status.isDenied) {
-          Logger.root.info(
-            'ManageExternalStorage permission is denied, requesting permission',
-          );
-          await [
-            Permission.manageExternalStorage,
-          ].request();
-        }
-        status = await Permission.manageExternalStorage.status;
-        if (status.isPermanentlyDenied) {
-          Logger.root.info(
-            'ManageExternalStorage Request is permanently denied, opening settings',
-          );
-          await openAppSettings();
-        }
-      }
-
-      Logger.root.info('Retrying to create audio file');
+      // No broad storage permission prompt: retry in the safe app directory.
+      if (!Platform.isAndroid) rethrow;
+      final safePath = await ExtStorageProvider.getExtStorage(
+        dirName: 'Music',
+        writeAccess: true,
+      );
+      if (safePath == null) rethrow;
+      dlPath = safePath;
+      await Hive.box('settings').put('downloadPath', safePath);
+      Logger.root.info('Retrying download in the app-owned music folder');
       await File('$dlPath/$fileName')
           .create(recursive: true)
           .then((value) => filepath = value.path);
-
-      Logger.root.info('Retrying to create image file');
       await File('$appPath/$artname')
           .create(recursive: true)
           .then((value) => filepath2 = value.path);
