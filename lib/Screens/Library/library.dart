@@ -21,6 +21,8 @@ import 'dart:io';
 
 import 'package:blackhole/CustomWidgets/drawer.dart';
 import 'package:blackhole/Screens/Library/liked.dart';
+import 'package:blackhole/Screens/Library/spotify_library.dart';
+import 'package:blackhole/Screens/Library/listening_insights.dart';
 import 'package:blackhole/Screens/LocalMusic/downed_songs.dart';
 import 'package:blackhole/Screens/LocalMusic/downed_songs_desktop.dart';
 import 'package:flutter/material.dart';
@@ -123,10 +125,30 @@ class _LibraryPageState extends State<LibraryPage> {
           },
         ),
         LibraryTile(
+          title: 'Playlists & folders',
+          subtitle: 'Pin, find, sort and organize your music',
+          icon: Icons.folder_copy_rounded,
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const JotifyLibraryPlus(),
+            ));
+          },
+        ),
+        LibraryTile(
           title: AppLocalizations.of(context)!.playlists,
           icon: Icons.playlist_play_rounded,
           onTap: () {
             Navigator.pushNamed(context, '/playlists');
+          },
+        ),
+        LibraryTile(
+          title: 'Your listening insights',
+          subtitle: 'Top songs, artists and your recent mix',
+          icon: Icons.insights_rounded,
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const JotifyListeningInsights(),
+            ));
           },
         ),
         LibraryTile(
