@@ -45,12 +45,12 @@ class _NewSettingsPageState extends State<NewSettingsPage>
     super.build(context);
     return GradientContainer(
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF121212),
         resizeToAvoidBottomInset: false,
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.transparent,
-          centerTitle: true,
+          centerTitle: false,
           leading: sectionsToShow.contains('Settings')
               ? homeDrawer(
                   context: context,
@@ -58,9 +58,11 @@ class _NewSettingsPageState extends State<NewSettingsPage>
                 )
               : null,
           title: Text(
-            AppLocalizations.of(context)!.settings,
-            style: TextStyle(
-              color: Theme.of(context).iconTheme.color,
+            'Settings and privacy',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 23,
+              fontWeight: FontWeight.w800,
             ),
           ),
           iconTheme: IconThemeData(
@@ -79,13 +81,14 @@ class _NewSettingsPageState extends State<NewSettingsPage>
 
   Widget _searchBar(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 0.0),
+      margin: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 6.0),
+      color: const Color(0xFF282828),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(
           10.0,
         ),
       ),
-      elevation: 2.0,
+      elevation: 0,
       child: SizedBox(
         height: 55.0,
         child: Center(
@@ -102,8 +105,9 @@ class _NewSettingsPageState extends State<NewSettingsPage>
                       color: Colors.transparent,
                     ),
                   ),
-                  fillColor: Theme.of(context).colorScheme.secondary,
-                  prefixIcon: const Icon(CupertinoIcons.search),
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white),
+                  border: InputBorder.none,
                   suffixIcon: query.trim() != ''
                       ? IconButton(
                           onPressed: () {
@@ -113,8 +117,8 @@ class _NewSettingsPageState extends State<NewSettingsPage>
                           icon: const Icon(Icons.close_rounded),
                         )
                       : null,
-                  border: InputBorder.none,
-                  hintText: AppLocalizations.of(context)!.search,
+                  hintText: 'Search settings',
+                  hintStyle: const TextStyle(color: Colors.white70),
                 ),
                 keyboardType: TextInputType.text,
                 textInputAction: TextInputAction.search,
@@ -300,17 +304,40 @@ class _NewSettingsPageState extends State<NewSettingsPage>
           physics: const BouncingScrollPhysics(),
           itemCount: settingsList.length,
           itemBuilder: (context, index) {
-            return ListTile(
-              leading: SizedBox.square(
-                dimension: 40,
-                child: Icon(settingsList[index]['icon'] as IconData),
+            final labels = [
+              'Appearance',
+              'Content and display',
+              'Playback and audio quality',
+              'Downloads and storage',
+              'App preferences',
+              'Backup and restore',
+              'About Jotify',
+            ];
+            final descriptions = [
+              'Dark mode, colors and themes',
+              'Home layout, player and navigation',
+              'Streaming, autoplay and music quality',
+              'Downloads, files and offline listening',
+              'Language, lyrics, cache and privacy-related controls',
+              'Export, restore and protect your library',
+              'Version, acknowledgements and support',
+            ];
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF242424),
+                borderRadius: BorderRadius.circular(12),
               ),
-              title: Text(settingsList[index]['title'].toString()),
-              subtitle: Text(
-                (settingsList[index]['items'] as List).take(3).join(', '),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFF333333),
+                child: Icon(settingsList[index]['icon'] as IconData, color: const Color(0xFF1ED760)),
               ),
+              title: Text(labels[index], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              subtitle: Text(descriptions[index], style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white70),
               isThreeLine: !isRotated &&
                   (settingsList[index]['isThreeLine'] as bool? ?? false),
               onTap: () {
@@ -324,6 +351,7 @@ class _NewSettingsPageState extends State<NewSettingsPage>
                   ),
                 );
               },
+              ),
             );
           },
         ),
