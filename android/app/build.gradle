@@ -40,8 +40,8 @@ def hasReleaseSigning =
         keystoreProperties['keyPassword'] != null
 
 android {
-    // AndroidX WebKit 1.11.0 from the YouTube embedded-player dependency
-    // requires compileSdk 34. This does not change targetSdk or minSdk.
+    // Android 14 SDK is required by the WebView and media playback plugins.
+    // Target recent Android privacy protections to avoid the obsolete-target warning.
     compileSdkVersion 34
     ndkVersion "21.4.7075529"
 
@@ -52,7 +52,7 @@ android {
     defaultConfig {
         applicationId "com.shadow.blackhole"
         minSdkVersion 21
-        targetSdkVersion 29
+        targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
@@ -79,9 +79,9 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Debug signing is used only as a fallback for local testing.
-            // Never distribute a debug-signed APK as a production release.
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            // Never ship a release APK signed with the debug development key.
+            // A production keystore must be provisioned separately and kept secret.
+            signingConfig hasReleaseSigning ? signingConfigs.release : null
             minifyEnabled false
             shrinkResources false
         }
