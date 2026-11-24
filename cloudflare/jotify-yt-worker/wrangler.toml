@@ -1,0 +1,13 @@
+name = "jotify-youtube-gateway"
+main = "src/index.js"
+compatibility_date = "2026-11-24"
+workers_dev = true
+
+# Add YOUTUBE_API_KEY as a Cloudflare *secret* (not in this file).
+# Rate limit is approximate, scoped to each Cloudflare edge location.
+[[ratelimits]]
+name = "YT_RATE_LIMITER"
+namespace_id = "921341"
+[ratelimits.simple]
+limit = 12
+period = 60
