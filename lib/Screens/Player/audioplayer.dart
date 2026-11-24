@@ -38,6 +38,7 @@ import 'package:blackhole/Helpers/config.dart';
 import 'package:blackhole/Helpers/dominant_color.dart';
 import 'package:blackhole/Helpers/lyrics.dart';
 import 'package:blackhole/Helpers/mediaitem_converter.dart';
+import 'package:blackhole/Screens/Player/immersive_lyrics.dart';
 import 'package:blackhole/Screens/Common/song_list.dart';
 import 'package:blackhole/Screens/Search/albums.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -266,7 +267,17 @@ class _PlayScreenState extends State<PlayScreen> {
                       //   'assets/lyrics.png',
                       // ),
                       tooltip: AppLocalizations.of(context)!.lyrics,
-                      onPressed: () => cardKey.currentState!.toggleCard(),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ImmersiveLyricsPage(
+                              audioHandler: audioHandler,
+                              albumColors: gradientColor,
+                              getLyricsOnline: getLyricsOnline,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     if (!offline)
                       IconButton(
