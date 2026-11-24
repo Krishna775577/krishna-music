@@ -2,7 +2,7 @@ name: Build Jotify V11 Native Android Preview APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, jotify-v11-stable]
     paths:
       - "android/**"
       - "lib/**"
