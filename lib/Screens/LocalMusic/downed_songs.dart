@@ -34,6 +34,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:hive/hive.dart';
 import 'package:logging/logging.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -131,7 +133,16 @@ class _DownloadedSongsState extends State<DownloadedSongs>
   Future<void> getData() async {
     try {
       Logger.root.info('Requesting permission to access local songs');
-      await offlineAudioQuery.requestPermission();
+      if (Platform.isAndroid &&
+          (await DeviceInfoPlugin().androidInfo).version.sdkInt >= 33) {
+        // Android 13+: only request the audio library, not every file.
+        final result = await Permission.audio.request();
+        if (!result.isGranted) {
+          Logger.root.warning('Local audio permission was not granted');
+        }
+      } else {
+        await offlineAudioQuery.requestPermission();
+      }
       tempPath ??= (await getTemporaryDirectory()).path;
       if (Platform.isAndroid) {
         Logger.root.info('Getting local playlists');
