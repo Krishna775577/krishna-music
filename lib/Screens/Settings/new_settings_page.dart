@@ -1,5 +1,4 @@
 import 'package:blackhole/CustomWidgets/drawer.dart';
-import 'package:blackhole/CustomWidgets/gradient_containers.dart';
 import 'package:blackhole/Screens/Settings/about.dart';
 import 'package:blackhole/Screens/Settings/app_ui.dart';
 import 'package:blackhole/Screens/Settings/backup_and_restore.dart';
@@ -7,425 +6,212 @@ import 'package:blackhole/Screens/Settings/download.dart';
 import 'package:blackhole/Screens/Settings/music_playback.dart';
 import 'package:blackhole/Screens/Settings/others.dart';
 import 'package:blackhole/Screens/Settings/theme.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-import 'package:hive_flutter/adapters.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+/// A Jotify-branded, Spotify-style settings index. Every entry opens the
+/// existing functioning settings screen; no simulated or non-working toggles.
 class NewSettingsPage extends StatefulWidget {
   final Function? callback;
-  const NewSettingsPage({this.callback});
+  const NewSettingsPage({super.key, this.callback});
 
   @override
   State<NewSettingsPage> createState() => _NewSettingsPageState();
 }
 
-class _NewSettingsPageState extends State<NewSettingsPage>
-    with AutomaticKeepAliveClientMixin<NewSettingsPage> {
-  final TextEditingController controller = TextEditingController();
-  final ValueNotifier<String> searchQuery = ValueNotifier<String>('');
-  final List sectionsToShow = Hive.box('settings').get(
-    'sectionsToShow',
-    defaultValue: ['Home', 'Top Charts', 'YouTube', 'Library'],
-  ) as List;
+class _NewSettingsPageState extends State<NewSettingsPage> {
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
 
   @override
   void dispose() {
-    controller.dispose();
-    searchQuery.dispose();
+    _search.dispose();
     super.dispose();
   }
 
   @override
-  bool get wantKeepAlive => sectionsToShow.contains('Settings');
-
-  @override
   Widget build(BuildContext context) {
-    super.build(context);
-    return GradientContainer(
-      child: Scaffold(
+    final settings = Hive.box('settings');
+    final name = settings.get('name', defaultValue: 'Jotify listener').toString();
+    final sections = settings.get('sectionsToShow',
+        defaultValue: ['Home', 'Search', 'Library', 'YouTube']) as List;
+    final entries = <_SettingsEntry>[
+      _SettingsEntry('Playback', 'Autoplay, repeat, language and audio quality',
+          Icons.play_circle_outline_rounded,
+          () => MusicPlaybackPage(callback: widget.callback),
+          'playback audio music quality streaming wifi autoplay repeat cache region language'),
+      _SettingsEntry('Downloads and storage',
+          'Download quality, folders, offline files and lyrics',
+          Icons.download_for_offline_outlined, () => const DownloadPage(),
+          'downloads storage offline quality location filename lyrics'),
+      _SettingsEntry('Appearance', 'Theme, dark mode, accent and AMOLED',
+          Icons.palette_outlined,
+          () => ThemePage(callback: widget.callback),
+          'appearance theme dark light color accent amoled gradient'),
+      _SettingsEntry('Content and display',
+          'Player layout, mini player, home sections and tabs',
+          Icons.dashboard_customize_outlined,
+          () => AppUIPage(callback: widget.callback),
+          'content display ui player mini navigation home layout tabs'),
+      _SettingsEntry('App preferences',
+          'Language, equalizer, lyrics, cache and other controls',
+          Icons.tune_rounded, () => const OthersPage(),
+          'app preferences language equalizer lyrics proxy cache folders search'),
+      _SettingsEntry('Backup and restore',
+          'Save, export and recover your Jotify library',
+          Icons.cloud_upload_outlined, () => const BackupAndRestorePage(),
+          'backup restore export import playlists library'),
+      _SettingsEntry('About Jotify', 'Version, acknowledgements and support',
+          Icons.info_outline_rounded, () => const AboutPage(),
+          'about app version contact support credits'),
+    ];
+    final visible = entries.where((e) =>
+        ('${e.title} ${e.subtitle} ${e.keywords}')
+            .toLowerCase().contains(_query.toLowerCase().trim())).toList();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      appBar: AppBar(
+        elevation: 0,
+        centerTitle: false,
         backgroundColor: const Color(0xFF121212),
-        resizeToAvoidBottomInset: false,
-        appBar: AppBar(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          centerTitle: false,
-          leading: sectionsToShow.contains('Settings')
-              ? homeDrawer(
-                  context: context,
-                  padding: const EdgeInsets.only(left: 15.0),
-                )
-              : null,
-          title: Text(
-            'Settings and privacy',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
+        leading: sections.contains('Settings')
+            ? homeDrawer(context: context,
+                padding: const EdgeInsets.only(left: 15))
+            : null,
+        title: const Text('Settings and privacy',
+            style: TextStyle(fontSize: 23,
+                fontWeight: FontWeight.w800, color: Colors.white)),
+      ),
+      body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 32),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+            child: TextField(
+              controller: _search,
+              onChanged: (v) => setState(() => _query = v),
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Search settings',
+                hintStyle: const TextStyle(color: Color(0xFFB3B3B3)),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: Color(0xFFB3B3B3)),
+                suffixIcon: _query.isEmpty ? null : IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => setState(() {
+                    _search.clear();
+                    _query = '';
+                  }),
+                ),
+                filled: true,
+                fillColor: const Color(0xFF282828),
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
           ),
-          iconTheme: IconThemeData(
-            color: Theme.of(context).iconTheme.color,
-          ),
-        ),
-        body: Column(
-          children: [
-            _searchBar(context),
-            Expanded(child: _settingsItem(context)),
+          if (_query.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Color(0xFF1ED760),
+                    child: Icon(Icons.person_rounded, size: 32,
+                        color: Colors.black),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white,
+                              fontSize: 19, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      const Text('Your Jotify listening preferences',
+                          style: TextStyle(color: Color(0xFFB3B3B3),
+                              fontSize: 12)),
+                    ],
+                  )),
+                ],
+              ),
+            ),
+            const _SectionLabel('Your listening'),
           ],
-        ),
+          ...visible.take(2).map((e) => _tile(context, e)),
+          if (_query.isEmpty) const _SectionLabel('App experience'),
+          ...visible.skip(2).take(3).map((e) => _tile(context, e)),
+          if (_query.isEmpty) const _SectionLabel('Your data and support'),
+          ...visible.skip(5).map((e) => _tile(context, e)),
+          if (visible.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(36),
+              child: Center(child: Text('No matching settings',
+                  style: TextStyle(color: Color(0xFFB3B3B3)))),
+            ),
+          if (_query.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: Text('Made for listening. Powered by Jotify.',
+                  style: TextStyle(color: Color(0xFF888888),
+                      fontSize: 12)),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _searchBar(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 6.0),
-      color: const Color(0xFF282828),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          10.0,
-        ),
+  Widget _tile(BuildContext context, _SettingsEntry item) {
+    return ListTile(
+      contentPadding: const EdgeInsets.fromLTRB(20, 7, 20, 7),
+      leading: SizedBox(
+        width: 42, height: 42,
+        child: Icon(item.icon, color: Colors.white, size: 27),
       ),
-      elevation: 0,
-      child: SizedBox(
-        height: 55.0,
-        child: Center(
-          child: ValueListenableBuilder(
-            valueListenable: searchQuery,
-            builder: (BuildContext context, String query, Widget? child) {
-              return TextField(
-                controller: controller,
-                textAlignVertical: TextAlignVertical.center,
-                decoration: InputDecoration(
-                  focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      width: 1.5,
-                      color: Colors.transparent,
-                    ),
-                  ),
-                  fillColor: Colors.white,
-                  prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white),
-                  border: InputBorder.none,
-                  suffixIcon: query.trim() != ''
-                      ? IconButton(
-                          onPressed: () {
-                            controller.clear();
-                            searchQuery.value = '';
-                          },
-                          icon: const Icon(Icons.close_rounded),
-                        )
-                      : null,
-                  hintText: 'Search settings',
-                  hintStyle: const TextStyle(color: Colors.white70),
-                ),
-                keyboardType: TextInputType.text,
-                textInputAction: TextInputAction.search,
-                onChanged: (_) {
-                  searchQuery.value = controller.text.trim();
-                },
-              );
-            },
-          ),
-        ),
+      title: Text(item.title,
+          style: const TextStyle(color: Colors.white,
+              fontWeight: FontWeight.w700, fontSize: 16)),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Text(item.subtitle,
+            style: const TextStyle(color: Color(0xFFB3B3B3),
+                fontSize: 12, height: 1.4)),
       ),
+      trailing: const Icon(Icons.chevron_right_rounded,
+          color: Color(0xFFB3B3B3)),
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => item.page())),
     );
   }
+}
 
-  Widget _settingsItem(BuildContext context) {
-    final List<Map<String, dynamic>> settingsList = [
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .theme,
-        'icon': MdiIcons.themeLightDark,
-        'onTap': ThemePage(
-          callback: widget.callback,
-        ),
-        'isThreeLine': true,
-        'items': [
-          AppLocalizations.of(context)!.darkMode,
-          AppLocalizations.of(context)!.accent,
-          AppLocalizations.of(context)!.useSystemTheme,
-          AppLocalizations.of(context)!.bgGrad,
-          AppLocalizations.of(context)!.cardGrad,
-          AppLocalizations.of(context)!.bottomGrad,
-          AppLocalizations.of(context)!.canvasColor,
-          AppLocalizations.of(context)!.cardColor,
-          AppLocalizations.of(context)!.useAmoled,
-          AppLocalizations.of(context)!.currentTheme,
-          AppLocalizations.of(context)!.saveTheme,
-        ],
-      },
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .ui,
-        'icon': Icons.design_services_rounded,
-        'onTap': AppUIPage(
-          callback: widget.callback,
-        ),
-        'isThreeLine': true,
-        'items': [
-          AppLocalizations.of(context)!.playerScreenBackground,
-          AppLocalizations.of(context)!.miniButtons,
-          AppLocalizations.of(context)!.useDenseMini,
-          AppLocalizations.of(context)!.blacklistedHomeSections,
-          AppLocalizations.of(context)!.changeOrder,
-          AppLocalizations.of(context)!.compactNotificationButtons,
-          AppLocalizations.of(context)!.showPlaylists,
-          AppLocalizations.of(context)!.showLast,
-          AppLocalizations.of(context)!.navTabs,
-          AppLocalizations.of(context)!.enableGesture,
-          AppLocalizations.of(context)!.volumeGestureEnabled,
-          AppLocalizations.of(context)!.useLessDataImage,
-        ],
-      },
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .musicPlayback,
-        'icon': Icons.music_note_rounded,
-        'onTap': MusicPlaybackPage(
-          callback: widget.callback,
-        ),
-        'isThreeLine': true,
-        'items': [
-          AppLocalizations.of(context)!.musicLang,
-          AppLocalizations.of(context)!.streamQuality,
-          AppLocalizations.of(context)!.chartLocation,
-          AppLocalizations.of(context)!.streamWifiQuality,
-          AppLocalizations.of(context)!.ytStreamQuality,
-          AppLocalizations.of(context)!.loadLast,
-          AppLocalizations.of(context)!.resetOnSkip,
-          AppLocalizations.of(context)!.enforceRepeat,
-          AppLocalizations.of(context)!.autoplay,
-          AppLocalizations.of(context)!.cacheSong,
-        ],
-      },
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .down,
-        'icon': Icons.download_done_rounded,
-        'onTap': const DownloadPage(),
-        'isThreeLine': true,
-        'items': [
-          AppLocalizations.of(context)!.downQuality,
-          AppLocalizations.of(context)!.downLocation,
-          AppLocalizations.of(context)!.downFilename,
-          AppLocalizations.of(context)!.ytDownQuality,
-          AppLocalizations.of(context)!.createAlbumFold,
-          AppLocalizations.of(context)!.createYtFold,
-          AppLocalizations.of(context)!.downLyrics,
-        ],
-      },
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .others,
-        'icon': Icons.miscellaneous_services_rounded,
-        'onTap': const OthersPage(),
-        'isThreeLine': true,
-        'items': [
-          AppLocalizations.of(context)!.lang,
-          AppLocalizations.of(context)!.includeExcludeFolder,
-          AppLocalizations.of(context)!.minAudioLen,
-          AppLocalizations.of(context)!.liveSearch,
-          AppLocalizations.of(context)!.useDown,
-          AppLocalizations.of(context)!.getLyricsOnline,
-          AppLocalizations.of(context)!.supportEq,
-          AppLocalizations.of(context)!.stopOnClose,
-          AppLocalizations.of(context)!.checkUpdate,
-          AppLocalizations.of(context)!.useProxy,
-          AppLocalizations.of(context)!.proxySet,
-          AppLocalizations.of(context)!.clearCache,
-          AppLocalizations.of(context)!.shareLogs,
-        ],
-      },
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .backNRest,
-        'icon': Icons.settings_backup_restore_rounded,
-        'onTap': const BackupAndRestorePage(),
-        'isThreeLine': false,
-        'items': [
-          AppLocalizations.of(context)!.createBack,
-          AppLocalizations.of(context)!.restore,
-          AppLocalizations.of(context)!.autoBack,
-          AppLocalizations.of(context)!.autoBackLocation,
-        ],
-      },
-      {
-        'title': AppLocalizations.of(
-          context,
-        )!
-            .about,
-        'icon': Icons.info_outline_rounded,
-        'onTap': const AboutPage(),
-        'isThreeLine': false,
-        'items': [
-          AppLocalizations.of(context)!.version,
-          AppLocalizations.of(context)!.shareApp,
-          AppLocalizations.of(context)!.contactUs,
-          AppLocalizations.of(context)!.likedWork,
-          AppLocalizations.of(context)!.donateGpay,
-          AppLocalizations.of(context)!.joinTg,
-          AppLocalizations.of(context)!.moreInfo,
-        ],
-      },
-    ];
+class _SettingsEntry {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget Function() page;
+  final String keywords;
+  const _SettingsEntry(this.title, this.subtitle, this.icon,
+      this.page, this.keywords);
+}
 
-    final List<Map> searchOptions = [];
-    for (final Map e in settingsList) {
-      for (final item in e['items'] as List) {
-        searchOptions.add({'title': item, 'route': e['onTap']});
-      }
-    }
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  const _SectionLabel(this.title);
 
-    final bool isRotated =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
-
-    return Stack(
-      children: [
-        ListView.builder(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 10.0,
-            vertical: 15.0,
-          ),
-          physics: const BouncingScrollPhysics(),
-          itemCount: settingsList.length,
-          itemBuilder: (context, index) {
-            final labels = [
-              'Appearance',
-              'Content and display',
-              'Playback and audio quality',
-              'Downloads and storage',
-              'App preferences',
-              'Backup and restore',
-              'About Jotify',
-            ];
-            final descriptions = [
-              'Dark mode, colors and themes',
-              'Home layout, player and navigation',
-              'Streaming, autoplay and music quality',
-              'Downloads, files and offline listening',
-              'Language, lyrics, cache and privacy-related controls',
-              'Export, restore and protect your library',
-              'Version, acknowledgements and support',
-            ];
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF242424),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              leading: CircleAvatar(
-                radius: 22,
-                backgroundColor: const Color(0xFF333333),
-                child: Icon(settingsList[index]['icon'] as IconData, color: const Color(0xFF1ED760)),
-              ),
-              title: Text(labels[index], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-              subtitle: Text(descriptions[index], style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white70),
-              isThreeLine: !isRotated &&
-                  (settingsList[index]['isThreeLine'] as bool? ?? false),
-              onTap: () {
-                searchQuery.value = '';
-                controller.text = '';
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        settingsList[index]['onTap'] as Widget,
-                  ),
-                );
-              },
-              ),
-            );
-          },
-        ),
-        ValueListenableBuilder(
-          valueListenable: searchQuery,
-          builder: (BuildContext context, String query, Widget? child) {
-            if (query != '') {
-              final List<Map> results = _getSearchResults(searchOptions, query);
-              return _searchSuggestions(context, results);
-            }
-            return const SizedBox();
-          },
-        ),
-      ],
-    );
-  }
-
-  List<Map> _getSearchResults(
-    List<Map> searchOptions,
-    String query,
-  ) {
-    final List<Map> options = query != ''
-        ? searchOptions
-            .where(
-              (element) =>
-                  element['title'].toString().toLowerCase().contains(query),
-            )
-            .toList()
-        : List.empty();
-    return options;
-  }
-
-  Widget _searchSuggestions(
-    BuildContext context,
-    List<Map> options,
-  ) {
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 18.0,
-        vertical: 10,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          10.0,
-        ),
-      ),
-      elevation: 8.0,
-      child: SizedBox(
-        height: options.length * 70,
-        child: ListView.builder(
-          padding: const EdgeInsets.only(left: 10, top: 10),
-          physics: const BouncingScrollPhysics(),
-          itemCount: options.length,
-          itemExtent: 70,
-          itemBuilder: (context, index) {
-            return ListTile(
-              leading: Text(options[index]['title'].toString()),
-              onTap: () {
-                searchQuery.value = '';
-                controller.text = '';
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => options[index]['route'] as Widget,
-                    settings: RouteSettings(
-                      arguments: options[index]['title'],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 9),
+    child: Text(title.toUpperCase(),
+        style: const TextStyle(color: Color(0xFFB3B3B3),
+            fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
+  );
 }
