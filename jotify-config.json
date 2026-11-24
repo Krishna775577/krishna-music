@@ -1,4 +1,4 @@
 {
   "version": 1,
-  "youtubeApiBase": ""
+  "youtubeApiBase": "https://YOUR-ACTUAL-WORKER.workers.dev"
 }
