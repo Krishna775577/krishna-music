@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+/// Compact dark bottom navigation with persistent visible tab labels.
+/// Navigation ownership remains with HomePage; no player or API logic here.
 class CustomBottomNavBar extends StatelessWidget {
   const CustomBottomNavBar({
     super.key,
@@ -12,176 +14,89 @@ class CustomBottomNavBar extends StatelessWidget {
     this.selectedColorOpacity,
     this.itemShape = const StadiumBorder(),
     this.margin = const EdgeInsets.all(8),
-    this.itemPadding = const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-    this.duration = const Duration(milliseconds: 500),
-    this.curve = Curves.easeOutQuint,
+    this.itemPadding = const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+    this.duration = const Duration(milliseconds: 180),
+    this.curve = Curves.easeOutCubic,
   });
 
-  /// A list of tabs to display, ie `Home`, `Likes`, etc
   final List<CustomBottomNavBarItem> items;
-
-  /// The tab to display.
   final int currentIndex;
-
-  /// Returns the index of the tab that was tapped.
   final Function(int)? onTap;
-
-  /// The background color of the bar.
   final Color? backgroundColor;
-
-  /// The color of the icon and text when the item is selected.
   final Color? selectedItemColor;
-
-  /// The color of the icon and text when the item is not selected.
   final Color? unselectedItemColor;
-
-  /// The opacity of color of the touchable background when the item is selected.
   final double? selectedColorOpacity;
-
-  /// The border shape of each item.
   final ShapeBorder itemShape;
-
-  /// A convenience field for the margin surrounding the entire widget.
   final EdgeInsets margin;
-
-  /// The padding of each item.
   final EdgeInsets itemPadding;
-
-  /// The transition duration
   final Duration duration;
-
-  /// The transition curve
   final Curve curve;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
+    final active = selectedItemColor ?? const Color(0xFF1ED760);
+    final inactive = unselectedItemColor ?? const Color(0xFFB3B3B3);
     return ColoredBox(
-      color: backgroundColor ?? Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10.0),
-        child: Row(
-          mainAxisAlignment: items.length <= 2
-              ? MainAxisAlignment.spaceEvenly
-              : MainAxisAlignment.spaceBetween,
-          children: [
-            for (final item in items)
-              TweenAnimationBuilder<double>(
-                tween: Tween(
-                  end: items.indexOf(item) == currentIndex ? 1.0 : 0.0,
-                ),
-                curve: curve,
-                duration: duration,
-                builder: (context, t, _) {
-                  final selectedColor = item.selectedColor ??
-                      selectedItemColor ??
-                      theme.primaryColor;
-
-                  final unselectedColor = item.unselectedColor ??
-                      unselectedItemColor ??
-                      theme.iconTheme.color;
-
-                  return Material(
-                    color: Color.lerp(
-                      selectedColor.withOpacity(0.0),
-                      selectedColor.withOpacity(selectedColorOpacity ?? 0.1),
-                      t,
-                    ),
-                    shape: itemShape,
-                    child: InkWell(
-                      onTap: () => onTap?.call(items.indexOf(item)),
-                      customBorder: itemShape,
-                      focusColor: selectedColor.withOpacity(0.1),
-                      highlightColor: selectedColor.withOpacity(0.1),
-                      splashColor: selectedColor.withOpacity(0.1),
-                      hoverColor: selectedColor.withOpacity(0.1),
-                      child: Padding(
-                        padding: itemPadding -
-                            (Directionality.of(context) == TextDirection.ltr
-                                ? EdgeInsets.only(right: itemPadding.right * t)
-                                : EdgeInsets.only(left: itemPadding.left * t)),
-                        child: Row(
-                          children: [
-                            IconTheme(
-                              data: IconThemeData(
-                                color: Color.lerp(
-                                  unselectedColor,
-                                  selectedColor,
-                                  t,
-                                ),
-                                size: 24,
-                              ),
-                              child: items.indexOf(item) == currentIndex
-                                  ? item.activeIcon ?? item.icon
-                                  : item.icon,
+      color: backgroundColor ?? const Color(0xFF101010),
+      child: Row(
+        children: [
+          for (var i = 0; i < items.length; i++)
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: currentIndex == i,
+                child: InkWell(
+                  onTap: () => onTap?.call(i),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: itemPadding,
+                    child: AnimatedDefaultTextStyle(
+                      duration: duration,
+                      curve: curve,
+                      style: TextStyle(
+                        color: currentIndex == i ? active : inactive,
+                        fontSize: 10,
+                        fontWeight: currentIndex == i
+                            ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconTheme(
+                            data: IconThemeData(
+                              color: currentIndex == i ? active : inactive,
+                              size: 25,
                             ),
-                            ClipRect(
-                              clipBehavior: Clip.antiAlias,
-                              child: SizedBox(
-                                /// TODO: Constrain item height without a fixed value
-                                ///
-                                /// The Align property appears to make these full height, would be
-                                /// best to find a way to make it respond only to padding.
-                                height: 20,
-                                child: Align(
-                                  alignment: const Alignment(-0.2, 0.0),
-                                  widthFactor: t,
-                                  child: Padding(
-                                    padding: Directionality.of(context) ==
-                                            TextDirection.ltr
-                                        ? EdgeInsets.only(
-                                            left: itemPadding.left / 2,
-                                            right: itemPadding.right,
-                                          )
-                                        : EdgeInsets.only(
-                                            left: itemPadding.left,
-                                            right: itemPadding.right / 2,
-                                          ),
-                                    child: DefaultTextStyle(
-                                      style: TextStyle(
-                                        color: Color.lerp(
-                                          selectedColor.withOpacity(0.0),
-                                          selectedColor,
-                                          t,
-                                        ),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      child: item.title,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                            child: currentIndex == i
+                                ? (items[i].activeIcon ?? items[i].icon)
+                                : items[i].icon,
+                          ),
+                          const SizedBox(height: 3),
+                          DefaultTextStyle.merge(
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            child: items[i].title,
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 }
 
-/// A tab to display in a [CustomBottomNavBar]
 class CustomBottomNavBarItem {
-  /// An icon to display.
   final Widget icon;
-
-  /// An icon to display when this tab bar is active.
   final Widget? activeIcon;
-
-  /// Text to display, ie `Home`
   final Widget title;
-
-  /// A primary color to use for this tab.
   final Color? selectedColor;
-
-  /// The color to display when this tab is not selected.
   final Color? unselectedColor;
 
   CustomBottomNavBarItem({
